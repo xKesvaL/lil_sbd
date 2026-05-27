@@ -1,4 +1,3 @@
-import { createFileRoute } from '@tanstack/react-router'
 import {
   IconArrowUpRight,
   IconBolt,
@@ -8,18 +7,23 @@ import {
   IconBrandTiktok,
   IconBrandYoutube,
   IconMail,
-  IconMenu2,
   IconMicrophone2,
   IconMusic,
   IconPlayerPlay,
   IconSchool,
-} from '@tabler/icons-react'
+} from "@tabler/icons-react";
+import { createFileRoute } from "@tanstack/react-router";
 
-import { m } from '#/paraglide/messages'
-import LocaleSwitcher from '@/components/LocaleSwitcher'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import { m } from "#/paraglide/messages";
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -27,120 +31,102 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
-import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
-const navItems = [
-  { href: '#about', label: () => m.home_nav_about() },
-  { href: '#music', label: () => m.home_nav_music() },
-  { href: '#course', label: () => m.home_nav_course() },
-  { href: '#contact', label: () => m.home_nav_contact() },
-] as const
+import { cn } from "@/lib/utils";
 
 const releaseLinks = [
   {
-    href: 'https://open.spotify.com/',
+    href: "https://open.spotify.com/",
     label: () => m.home_release_link_spotify(),
     Icon: IconBrandSpotify,
   },
   {
-    href: 'https://soundcloud.com/',
+    href: "https://soundcloud.com/",
     label: () => m.home_release_link_soundcloud(),
     Icon: IconBrandSoundcloud,
   },
   {
-    href: 'https://music.youtube.com/',
+    href: "https://music.youtube.com/",
     label: () => m.home_release_link_youtube(),
     Icon: IconBrandYoutube,
   },
-] as const
+] as const;
 
 const releases = [
   {
-    artwork: 'LS-01',
+    artwork: "LS-01",
     eyebrow: () => m.home_release_1_eyebrow(),
     title: () => m.home_release_1_title(),
     description: () => m.home_release_1_description(),
   },
   {
-    artwork: 'LS-02',
+    artwork: "LS-02",
     eyebrow: () => m.home_release_2_eyebrow(),
     title: () => m.home_release_2_title(),
     description: () => m.home_release_2_description(),
   },
   {
-    artwork: 'LS-03',
+    artwork: "LS-03",
     eyebrow: () => m.home_release_3_eyebrow(),
     title: () => m.home_release_3_title(),
     description: () => m.home_release_3_description(),
   },
-] as const
+] as const;
 
 const faqItems = [
   {
-    id: 'faq-1',
+    id: "faq-1",
     question: () => m.home_faq_1_question(),
     answer: () => m.home_faq_1_answer(),
   },
   {
-    id: 'faq-2',
+    id: "faq-2",
     question: () => m.home_faq_2_question(),
     answer: () => m.home_faq_2_answer(),
   },
   {
-    id: 'faq-3',
+    id: "faq-3",
     question: () => m.home_faq_3_question(),
     answer: () => m.home_faq_3_answer(),
   },
-] as const
+] as const;
 
 const socialLinks = [
   {
-    href: 'https://instagram.com/',
-    label: 'Instagram',
+    href: "https://instagram.com/",
+    label: "Instagram",
     Icon: IconBrandInstagram,
   },
   {
-    href: 'https://tiktok.com/',
-    label: 'TikTok',
+    href: "https://tiktok.com/",
+    label: "TikTok",
     Icon: IconBrandTiktok,
   },
   {
-    href: 'https://open.spotify.com/',
-    label: 'Spotify',
+    href: "https://open.spotify.com/",
+    label: "Spotify",
     Icon: IconBrandSpotify,
   },
   {
-    href: 'https://youtube.com/',
-    label: 'YouTube',
+    href: "https://youtube.com/",
+    label: "YouTube",
     Icon: IconBrandYoutube,
   },
   {
-    href: 'https://soundcloud.com/',
-    label: 'SoundCloud',
+    href: "https://soundcloud.com/",
+    label: "SoundCloud",
     Icon: IconBrandSoundcloud,
   },
-] as const
+] as const;
 
-export const Route = createFileRoute('/')({ component: Home })
+export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   return (
     <main id="top" className="relative overflow-hidden">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-14 px-4 pb-16 pt-4 sm:px-6 lg:px-8">
-        <SiteHeader />
-
+      <div className="kcontainer flex min-h-screen flex-col gap-14 pb-16 pt-4 ">
         <section className="grid scroll-mt-28 gap-8 pt-4 lg:grid-cols-[minmax(0,1.12fr)_22rem] lg:items-end lg:pt-8">
           <div className="flex flex-col gap-8">
             <div className="flex flex-wrap gap-3">
@@ -167,14 +153,17 @@ function Home() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
                 href="#music"
-                className={cn(buttonVariants({ size: 'lg' }), 'justify-center sm:w-auto')}
+                className={cn(buttonVariants({ size: "lg" }), "justify-center sm:w-auto")}
               >
                 <IconPlayerPlay data-icon="inline-start" />
                 {m.home_primary_cta()}
               </a>
               <a
                 href="#course"
-                className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'justify-center sm:w-auto')}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "justify-center sm:w-auto",
+                )}
               >
                 <IconSchool data-icon="inline-start" />
                 {m.home_secondary_cta()}
@@ -182,9 +171,18 @@ function Home() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <TopicTile title={m.home_feature_1_title()} description={m.home_feature_1_description()} />
-              <TopicTile title={m.home_feature_2_title()} description={m.home_feature_2_description()} />
-              <TopicTile title={m.home_feature_3_title()} description={m.home_feature_3_description()} />
+              <TopicTile
+                title={m.home_feature_1_title()}
+                description={m.home_feature_1_description()}
+              />
+              <TopicTile
+                title={m.home_feature_2_title()}
+                description={m.home_feature_2_description()}
+              />
+              <TopicTile
+                title={m.home_feature_3_title()}
+                description={m.home_feature_3_description()}
+              />
             </div>
           </div>
 
@@ -217,7 +215,7 @@ function Home() {
                   href={href}
                   target="_blank"
                   rel="noreferrer"
-                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   <Icon data-icon="inline-start" />
                   {label()}
@@ -288,7 +286,10 @@ function Home() {
                       href={href}
                       target="_blank"
                       rel="noreferrer"
-                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                      className={buttonVariants({
+                        variant: "outline",
+                        size: "sm",
+                      })}
                     >
                       <Icon data-icon="inline-start" />
                       {label()}
@@ -321,7 +322,7 @@ function Home() {
               </div>
             </CardContent>
             <CardFooter className="border-t border-border/60 pt-6">
-              <a href="#contact" className={buttonVariants({ size: 'lg' })}>
+              <a href="#contact" className={buttonVariants({ size: "lg" })}>
                 <IconArrowUpRight data-icon="inline-end" />
                 {m.home_course_cta()}
               </a>
@@ -366,7 +367,7 @@ function Home() {
             <CardContent className="flex flex-col gap-6">
               <a
                 href="mailto:contact@lilsbd.com"
-                className={cn(buttonVariants({ size: 'lg' }), 'justify-center')}
+                className={cn(buttonVariants({ size: "lg" }), "justify-center")}
               >
                 <IconMail data-icon="inline-start" />
                 {m.home_contact_email_cta()}
@@ -379,7 +380,10 @@ function Home() {
                     href={href}
                     target="_blank"
                     rel="noreferrer"
-                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    className={buttonVariants({
+                      variant: "outline",
+                      size: "sm",
+                    })}
                   >
                     <Icon data-icon="inline-start" />
                     {label}
@@ -391,100 +395,7 @@ function Home() {
         </section>
       </div>
     </main>
-  )
-}
-
-function SiteHeader() {
-  return (
-    <header className="sticky top-4 z-40">
-      <div className="flex items-center gap-3 rounded-full border border-border/60 bg-background/78 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur-md sm:px-5">
-        <a href="#top" className="min-w-0">
-          <span className="block text-[0.65rem] font-medium uppercase tracking-[0.32em] text-muted-foreground">
-            {m.home_header_kicker()}
-          </span>
-          <span className="block truncate text-sm font-medium sm:text-base">{m.home_eyebrow()}</span>
-        </a>
-
-        <Separator orientation="vertical" className="hidden h-8 md:block" />
-
-        <nav className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className={cn(
-                buttonVariants({ variant: 'ghost', size: 'sm' }),
-                'rounded-full text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {item.label()}
-            </a>
-          ))}
-        </nav>
-
-        <div className="ml-auto hidden items-center gap-3 md:flex">
-          <LocaleSwitcher compact />
-          <a href="#music" className={buttonVariants({ size: 'sm' })}>
-            <IconPlayerPlay data-icon="inline-start" />
-            {m.home_header_cta()}
-          </a>
-        </div>
-
-        <div className="ml-auto md:hidden">
-          <Sheet>
-            <SheetTrigger
-              render={<button type="button" className={buttonVariants({ variant: 'outline', size: 'icon-sm' })} />}
-              aria-label={m.home_menu_open_label()}
-            >
-              <IconMenu2 />
-            </SheetTrigger>
-            <SheetContent side="right" className="border-border/60 bg-popover/96">
-              <SheetHeader className="border-b border-border/60">
-                <SheetTitle>{m.home_eyebrow()}</SheetTitle>
-                <SheetDescription>{m.home_header_tagline()}</SheetDescription>
-              </SheetHeader>
-
-              <div className="flex flex-col gap-2 p-6">
-                <LocaleSwitcher className="mb-2" />
-                {navItems.map((item) => (
-                  <SheetClose
-                    key={item.href}
-                    onClick={() => scrollToHash(item.href)}
-                    render={<button type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'lg' }), 'justify-start')} />}
-                  >
-                    {item.label()}
-                  </SheetClose>
-                ))}
-              </div>
-
-              <SheetFooter className="border-t border-border/60">
-                <SheetClose
-                  onClick={() => scrollToHash('#music')}
-                  render={<button type="button" className={cn(buttonVariants({ size: 'lg' }), 'justify-center')} />}
-                >
-                  <IconPlayerPlay data-icon="inline-start" />
-                  {m.home_header_cta()}
-                </SheetClose>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
-    </header>
-  )
-}
-
-function scrollToHash(hash: string) {
-  if (typeof document === 'undefined') {
-    return
-  }
-
-  const target = document.querySelector(hash)
-
-  if (target instanceof HTMLElement) {
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.history.replaceState(null, '', hash)
-  }
+  );
 }
 
 function SectionIntro({
@@ -492,9 +403,9 @@ function SectionIntro({
   title,
   description,
 }: {
-  badge: string
-  title: string
-  description: string
+  badge: string;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="flex max-w-3xl flex-col gap-4">
@@ -506,7 +417,7 @@ function SectionIntro({
         <p className="text-sm leading-8 text-muted-foreground sm:text-base">{description}</p>
       </div>
     </div>
-  )
+  );
 }
 
 function TopicTile({ title, description }: { title: string; description: string }) {
@@ -517,7 +428,7 @@ function TopicTile({ title, description }: { title: string; description: string 
         <p className="text-sm leading-7 text-muted-foreground">{description}</p>
       </div>
     </div>
-  )
+  );
 }
 
 function InfoRow({
@@ -525,9 +436,9 @@ function InfoRow({
   title,
   description,
 }: {
-  icon: typeof IconMusic
-  title: string
-  description: string
+  icon: typeof IconMusic;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="flex gap-4 rounded-2xl border border-border/50 bg-background/65 p-4">
@@ -539,7 +450,7 @@ function InfoRow({
         <p className="text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
     </div>
-  )
+  );
 }
 
 function FeaturePill({ children }: { children: string }) {
@@ -547,5 +458,5 @@ function FeaturePill({ children }: { children: string }) {
     <div className="rounded-2xl border border-border/50 bg-background/65 px-4 py-3 text-sm leading-7 text-muted-foreground">
       {children}
     </div>
-  )
+  );
 }

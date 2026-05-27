@@ -1,14 +1,10 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
-import {
-  createRootRouteWithContext,
-  HeadContent,
-  Scripts,
-} from "@tanstack/react-router";
+import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { Header } from "#/components/layout/Header.tsx";
 import { TooltipProvider } from "#/components/ui/tooltip.tsx";
 import { m } from "#/paraglide/messages";
-
 import { getLocale } from "#/paraglide/runtime";
 import PostHogProvider from "../integrations/posthog/provider";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
@@ -67,6 +63,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <PostHogProvider>
           <TooltipProvider>
+            <Header />
+
             {children}
             <TanStackDevtools
               config={{
