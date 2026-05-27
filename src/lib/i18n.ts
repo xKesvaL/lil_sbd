@@ -27,6 +27,16 @@ function toUrlPattern(path: string) {
   );
 }
 
+function toLocalizedUrlPattern(locale: Locale, path: string) {
+  const localizedPath = toUrlPattern(path);
+
+  if (locale === "en") {
+    return localizedPath || "/";
+  }
+
+  return `/${locale}${localizedPath}`;
+}
+
 function createTranslatedPathnames(
   input: Record<PublicRoutePath, Record<Locale, string>>,
 ): TranslatedPathname[] {
@@ -34,7 +44,10 @@ function createTranslatedPathnames(
     pattern: toUrlPattern(pattern),
     localized: Object.entries(locales).map(
       ([locale, path]) =>
-        [locale as Locale, `/${locale}${toUrlPattern(path)}`] satisfies [Locale, string],
+        [locale as Locale, toLocalizedUrlPattern(locale as Locale, path)] satisfies [
+          Locale,
+          string,
+        ],
     ),
   }));
 }
