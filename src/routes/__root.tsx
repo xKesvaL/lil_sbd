@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TooltipProvider } from "#/components/ui/tooltip.tsx";
+import { m } from "#/paraglide/messages";
 
 import { getLocale } from "#/paraglide/runtime";
 import PostHogProvider from "../integrations/posthog/provider";
@@ -36,7 +37,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: m.home_meta_title(),
+      },
+      {
+        name: "description",
+        content: m.home_meta_description(),
+      },
+      {
+        name: "theme-color",
+        content: "#151124",
       },
     ],
     links: [
