@@ -1,97 +1,71 @@
 import {
-  IconArrowUpRight,
-  IconBolt,
   IconBrandInstagram,
   IconBrandSoundcloud,
   IconBrandSpotify,
   IconBrandTiktok,
   IconBrandYoutube,
-  IconMail,
-  IconMicrophone2,
-  IconMusic,
-  IconPlayerPlay,
-  IconSchool,
 } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-
-import { m } from "#/paraglide/messages";
-
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import DarkVeil from "#/components/react-bits/dark-veil.tsx";
+import { HomeHero } from "#/containers/home/home-hero.tsx";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
-import { cn } from "@/lib/utils";
+// const releaseLinks = [
+//   {
+//     href: "https://open.spotify.com/",
+//     label: () => m.home_release_link_spotify(),
+//     Icon: IconBrandSpotify,
+//   },
+//   {
+//     href: "https://soundcloud.com/",
+//     label: () => m.home_release_link_soundcloud(),
+//     Icon: IconBrandSoundcloud,
+//   },
+//   {
+//     href: "https://music.youtube.com/",
+//     label: () => m.home_release_link_youtube(),
+//     Icon: IconBrandYoutube,
+//   },
+// ] as const;
 
-const releaseLinks = [
-  {
-    href: "https://open.spotify.com/",
-    label: () => m.home_release_link_spotify(),
-    Icon: IconBrandSpotify,
-  },
-  {
-    href: "https://soundcloud.com/",
-    label: () => m.home_release_link_soundcloud(),
-    Icon: IconBrandSoundcloud,
-  },
-  {
-    href: "https://music.youtube.com/",
-    label: () => m.home_release_link_youtube(),
-    Icon: IconBrandYoutube,
-  },
-] as const;
+// const releases = [
+//   {
+//     artwork: "LS-01",
+//     eyebrow: () => m.home_release_1_eyebrow(),
+//     title: () => m.home_release_1_title(),
+//     description: () => m.home_release_1_description(),
+//   },
+//   {
+//     artwork: "LS-02",
+//     eyebrow: () => m.home_release_2_eyebrow(),
+//     title: () => m.home_release_2_title(),
+//     description: () => m.home_release_2_description(),
+//   },
+//   {
+//     artwork: "LS-03",
+//     eyebrow: () => m.home_release_3_eyebrow(),
+//     title: () => m.home_release_3_title(),
+//     description: () => m.home_release_3_description(),
+//   },
+// ] as const;
 
-const releases = [
-  {
-    artwork: "LS-01",
-    eyebrow: () => m.home_release_1_eyebrow(),
-    title: () => m.home_release_1_title(),
-    description: () => m.home_release_1_description(),
-  },
-  {
-    artwork: "LS-02",
-    eyebrow: () => m.home_release_2_eyebrow(),
-    title: () => m.home_release_2_title(),
-    description: () => m.home_release_2_description(),
-  },
-  {
-    artwork: "LS-03",
-    eyebrow: () => m.home_release_3_eyebrow(),
-    title: () => m.home_release_3_title(),
-    description: () => m.home_release_3_description(),
-  },
-] as const;
-
-const faqItems = [
-  {
-    id: "faq-1",
-    question: () => m.home_faq_1_question(),
-    answer: () => m.home_faq_1_answer(),
-  },
-  {
-    id: "faq-2",
-    question: () => m.home_faq_2_question(),
-    answer: () => m.home_faq_2_answer(),
-  },
-  {
-    id: "faq-3",
-    question: () => m.home_faq_3_question(),
-    answer: () => m.home_faq_3_answer(),
-  },
-] as const;
+// const faqItems = [
+//   {
+//     id: "faq-1",
+//     question: () => m.home_faq_1_question(),
+//     answer: () => m.home_faq_1_answer(),
+//   },
+//   {
+//     id: "faq-2",
+//     question: () => m.home_faq_2_question(),
+//     answer: () => m.home_faq_2_answer(),
+//   },
+//   {
+//     id: "faq-3",
+//     question: () => m.home_faq_3_question(),
+//     answer: () => m.home_faq_3_answer(),
+//   },
+// ] as const;
 
 const socialLinks = [
   {
@@ -125,106 +99,22 @@ export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   return (
-    <main id="top" className="relative overflow-hidden">
-      <div className="kcontainer flex min-h-screen flex-col gap-14 pb-16 pt-4 ">
-        <section className="grid scroll-mt-28 gap-8 pt-4 lg:grid-cols-[minmax(0,1.12fr)_22rem] lg:items-end lg:pt-8">
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-wrap gap-3">
-              <Badge variant="secondary">
-                <IconBolt data-icon="inline-start" />
-                {m.home_badge_genre()}
-              </Badge>
-              <Badge variant="outline">{m.home_badge_location()}</Badge>
-              <Badge variant="outline">{m.home_badge_mission()}</Badge>
-            </div>
+    <main id="top" className="relative overflow-hidden pt-20">
+      <div className="fixed inset-0 -z-10 opacity-70">
+        <DarkVeil
+          hueShift={0}
+          noiseIntensity={0.07}
+          scanlineIntensity={0.15}
+          speed={1.5}
+          scanlineFrequency={1}
+          warpAmount={5}
+          verticalOffset={0.1}
+        />
+      </div>
 
-            <div className="flex max-w-4xl flex-col gap-5">
-              <p className="text-sm font-medium uppercase tracking-[0.32em] text-muted-foreground">
-                {m.home_eyebrow()}
-              </p>
-              <h1 className="text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-                {m.home_hero_title()}
-              </h1>
-              <p className="max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-                {m.home_hero_description()}
-              </p>
-            </div>
+      <HomeHero />
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <a
-                href="#music"
-                className={cn(buttonVariants({ size: "lg" }), "justify-center sm:w-auto")}
-              >
-                <IconPlayerPlay data-icon="inline-start" />
-                {m.home_primary_cta()}
-              </a>
-              <a
-                href="#course"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "justify-center sm:w-auto",
-                )}
-              >
-                <IconSchool data-icon="inline-start" />
-                {m.home_secondary_cta()}
-              </a>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <TopicTile
-                title={m.home_feature_1_title()}
-                description={m.home_feature_1_description()}
-              />
-              <TopicTile
-                title={m.home_feature_2_title()}
-                description={m.home_feature_2_description()}
-              />
-              <TopicTile
-                title={m.home_feature_3_title()}
-                description={m.home_feature_3_description()}
-              />
-            </div>
-          </div>
-
-          <Card className="border border-border/60 bg-card/70">
-            <CardHeader>
-              <CardTitle>{m.home_panel_title()}</CardTitle>
-              <CardDescription>{m.home_panel_description()}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <InfoRow
-                icon={IconMusic}
-                title={m.home_panel_row_1_title()}
-                description={m.home_panel_row_1_description()}
-              />
-              <InfoRow
-                icon={IconMicrophone2}
-                title={m.home_panel_row_2_title()}
-                description={m.home_panel_row_2_description()}
-              />
-              <InfoRow
-                icon={IconSchool}
-                title={m.home_panel_row_3_title()}
-                description={m.home_panel_row_3_description()}
-              />
-            </CardContent>
-            <CardFooter className="flex flex-wrap gap-2 border-t border-border/60 pt-6">
-              {releaseLinks.map(({ href, label, Icon }) => (
-                <a
-                  key={href}
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  <Icon data-icon="inline-start" />
-                  {label()}
-                </a>
-              ))}
-            </CardFooter>
-          </Card>
-        </section>
-
+      {/* <div className="kcontainer flex min-h-screen flex-col gap-14 pb-16 pt-4 ">
         <section
           id="about"
           className="grid scroll-mt-28 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]"
@@ -393,7 +283,7 @@ function Home() {
             </CardContent>
           </Card>
         </section>
-      </div>
+      </div> */}
     </main>
   );
 }
@@ -415,39 +305,6 @@ function SectionIntro({
       <div className="flex flex-col gap-3">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
         <p className="text-sm leading-8 text-muted-foreground sm:text-base">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function TopicTile({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="rounded-3xl border border-border/50 bg-card/62 p-5">
-      <div className="flex flex-col gap-2">
-        <p className="text-base font-medium">{title}</p>
-        <p className="text-sm leading-7 text-muted-foreground">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: typeof IconMusic;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex gap-4 rounded-2xl border border-border/50 bg-background/65 p-4">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border/50 bg-background">
-        <Icon />
-      </div>
-      <div className="flex flex-col gap-1">
-        <p className="font-medium">{title}</p>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
     </div>
   );

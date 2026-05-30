@@ -19,6 +19,12 @@ body {
   margin: 0;
 }
 
+@property --gradient-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Outfit Variable", sans-serif;
@@ -60,6 +66,14 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  @keyframes gradient-rotate {
+    from {
+      --gradient-angle: 0deg;
+    }
+    to {
+      --gradient-angle: 360deg;
+    }
+  }
 }
 
 :root {
@@ -75,7 +89,7 @@ body {
   --secondary-foreground: oklch(0.93 0.01 293);
   --muted: oklch(0.27 0.012 286);
   --muted-foreground: oklch(0.74 0.012 286);
-  --accent: oklch(0.491 0.27 292.581);
+  --accent: oklab(75.668% -0.11964 0.11801);
   --accent-foreground: oklch(0.969 0.016 293.756);
   --destructive: oklch(0.62 0.21 26);
   --border: oklch(1 0 0 / 12%);
@@ -86,7 +100,7 @@ body {
   --chart-3: oklch(0.541 0.281 293.009);
   --chart-4: oklch(0.491 0.27 292.581);
   --chart-5: oklch(0.432 0.232 292.759);
-  --radius: 0.625rem;
+  --radius: 0rem;
   --sidebar: oklch(0.2 0.012 286);
   --sidebar-foreground: oklch(0.96 0.01 293);
   --sidebar-primary: oklch(0.541 0.281 293.009);
@@ -131,6 +145,15 @@ body {
   --sidebar-ring: oklch(0.552 0.016 285.938);
 }
 
+@keyframes gradient-rotate {
+  0% {
+    --gradient-angle: 0deg;
+  }
+  100% {
+    --gradient-angle: 360deg;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -156,6 +179,33 @@ body {
   }
 }
 
+@layer utilities {
+  .gradient-border-auto {
+    animation: gradient-rotate var(--animation-duration, 5s) linear infinite;
+  }
+
+  .gradient-border-hover {
+    animation: gradient-rotate var(--animation-duration, 5s) linear infinite;
+    animation-play-state: paused;
+  }
+
+  .gradient-border-hover:hover {
+    animation-play-state: running;
+  }
+
+  .gradient-border-stop-hover {
+    animation: gradient-rotate var(--animation-duration, 5s) linear infinite;
+  }
+
+  .gradient-border-stop-hover:hover {
+    animation-play-state: paused;
+  }
+}
+
 @utility kcontainer {
   @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+@utility section {
+  @apply py-8 md:py-12 lg:py-16 xl:py-20;
 }
