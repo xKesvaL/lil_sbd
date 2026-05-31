@@ -62,6 +62,9 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@content-collections/core": "^0.15.1",
+    "@content-collections/mdx": "^0.2.2",
+    "@content-collections/vite": "^0.3.0",
     "@inlang/paraglide-js": "^2.18.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tailwindcss/typography": "^0.5.19",
@@ -77,8 +80,8 @@
     "jsdom": "^28.1.0",
     "typescript": "^6.0.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
-    "vite-plus": "latest"
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -1,3 +1,67 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "course": {
+    "landing": {
+      "eyebrow": "Cours de production gratuit",
+      "title": "La production hard dance, expliquée proprement",
+      "description": "Un cours gratuit construit autour du vrai workflow : kicks, mélodies, voix, arrangement, mixage, et les décisions qui gardent un morceau violent sans l'écraser.",
+      "start": "Commencer par l'introduction",
+      "explore": "Ouvrir le chapitre"
+    },
+    "roadmap": {
+      "eyebrow": "Programme",
+      "title": "Ce que couvre le cours",
+      "description": "Le parcours est découpé en chapitres et leçons pour pouvoir suivre l'ordre ou aller directement au sujet dont tu as besoin.",
+      "empty": "Le programme est encore en construction."
+    },
+    "chapter": {
+      "eyebrow": "Chapitre",
+      "back": "Retour au cours",
+      "about": "Vue d'ensemble du chapitre",
+      "about_description": "Utilise cette page comme carte du chapitre avant d'entrer dans les leçons.",
+      "goals": "Objectifs",
+      "resources": "Ressources du chapitre",
+      "lessons": "Leçons",
+      "lessons_description": "Les leçons publiées sont en ligne. Les leçons à venir restent visibles pour montrer où va le chapitre."
+    },
+    "lesson": {
+      "back": "Retour au chapitre",
+      "duration": "Durée",
+      "prerequisites": "Avant de commencer",
+      "tools": "Outils utilisés",
+      "resources": "Liens utiles",
+      "downloads": "Téléchargements",
+      "watch": "Voir sur YouTube",
+      "next": "Ensuite",
+      "notes": "Notes de la leçon",
+      "open": "Ouvrir la leçon"
+    },
+    "status": {
+      "published": "En ligne",
+      "coming_soon": "Bientôt",
+      "draft": "Brouillon"
+    },
+    "placeholder": {
+      "title": "Cette leçon est prévue, mais pas encore en ligne.",
+      "description": "Le programme reste public volontairement pour montrer ce qui arrive et comment le chapitre est structuré."
+    },
+    "not_found": {
+      "title": "Page du cours introuvable",
+      "description": "Le chapitre ou la leçon demandée n'existe pas encore, ou reste privé(e).",
+      "cta": "Retour au cours"
+    },
+    "meta": {
+      "suffix": "Cours gratuit | Lil SBD",
+      "landing_description": "Cours gratuit de production hard dance par Lil SBD, avec kicks, sound design, voix, arrangement, mixage et publication."
+    },
+    "stats": {
+      "chapters": "chapitres en ligne ou prévus",
+      "lessons": "leçons en ligne ou prévues",
+      "free_value": "100% gratuit",
+      "free_label": "Pas de paywall, pas d'offre cachée"
+    },
+    "cards": {
+      "lessons": "leçons"
+    }
+  }
 }

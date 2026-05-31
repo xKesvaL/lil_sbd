@@ -78,12 +78,10 @@ export const HomeHero = () => {
               {m["home.hero.genre_producer"]()}
             </div>
           </div>
-          <h1 className="text-7xl font-bold italic [font-variant:small-caps]">
-            {m["home.hero.title"]()}
-          </h1>
+          <h1 className="text-7xl font-bold italic">{m["home.hero.title"]()}</h1>
           <p className="text-lg max-w-3xl">{m["home.hero.description"]()}</p>
           <div className="flex gap-4 items-center">
-            <Button size="lg" className="pl-3">
+            <Button size="lg" className="pl-3" nativeButton={false} render={<Link to="/course" />}>
               <IconBooks />
               {m["home.hero.cta_course"]()}
             </Button>
@@ -106,7 +104,7 @@ export const HomeHero = () => {
             <TopicTile
               title={m["home.hero.topic_course.title"]()}
               description={m["home.hero.topic_course.description"]()}
-              to="/"
+              to="/course"
               icon={IconBooks}
             />
             <TopicTile

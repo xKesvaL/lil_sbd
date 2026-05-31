@@ -196,24 +196,11 @@ function ListenNowDropdown({ className }: { className?: string }) {
 }
 
 const navItems = [
-  { href: "#about", label: () => m["nav.about"]() },
-  { href: "#music", label: () => m["nav.music"]() },
-  { href: "#course", label: () => m["nav.course"]() },
-  { href: "#contact", label: () => m["nav.contact"]() },
+  { to: "/", hash: "about", label: () => m["nav.about"]() },
+  { to: "/", hash: "music", label: () => m["nav.music"]() },
+  { to: "/course", label: () => m["nav.course"]() },
+  { to: "/", hash: "contact", label: () => m["nav.contact"]() },
 ] as const;
-
-function scrollToHash(hash: string) {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  const target = document.querySelector(hash);
-
-  if (target instanceof HTMLElement) {
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.history.replaceState(null, "", hash);
-  }
-}
 
 export const Header = () => {
   return (
@@ -230,16 +217,17 @@ export const Header = () => {
 
         <nav className="hidden items-center gap-1 md:flex">
           {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
+            <Link
+              key={`${item.to}${item.hash ?? ""}`}
+              to={item.to}
+              hash={item.hash}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
                 "rounded-full text-muted-foreground hover:text-foreground",
               )}
             >
               {item.label()}
-            </a>
+            </Link>
           ))}
         </nav>
 
@@ -277,11 +265,11 @@ export const Header = () => {
                 <ParaglideLocaleSwitcher className="mb-2" />
                 {navItems.map((item) => (
                   <SheetClose
-                    key={item.href}
-                    onClick={() => scrollToHash(item.href)}
+                    key={`${item.to}${item.hash ?? ""}`}
                     render={
-                      <button
-                        type="button"
+                      <Link
+                        to={item.to}
+                        hash={item.hash}
                         className={cn(
                           buttonVariants({ variant: "ghost", size: "lg" }),
                           "justify-start",

@@ -9,7 +9,7 @@ export const HomeCourse = () => {
       <div className="flex flex-col gap-4 bg-background/50 backdrop-blur-md p-6 border">
         <h2 className="text-4xl font-bold">{m["home.course.title"]()}</h2>
         <p className="text-lg max-w-prose">{m["home.course.description"]()}</p>
-        <Button nativeButton={false} className="w-fit" render={<Link to="/" />}>
+        <Button nativeButton={false} className="w-fit" render={<Link to="/course" />}>
           {m["home.course.cta"]()}
           <IconArrowRight />
         </Button>

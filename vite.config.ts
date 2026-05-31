@@ -1,3 +1,4 @@
+import contentCollections from "@content-collections/vite";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
@@ -31,6 +32,7 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
     babel({ presets: [reactCompilerPreset()] }),
+    contentCollections(),
   ],
 });
 

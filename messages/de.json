@@ -1,3 +1,67 @@
 {
-  "$schema": "https://inlang.com/schema/inlang-message-format"
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "course": {
+    "landing": {
+      "eyebrow": "Kostenloser Produktionskurs",
+      "title": "Hard-Dance-Produktion, sauber erklärt",
+      "description": "Ein kostenloser Kurs, der sich am echten Workflow orientiert: Kicks, Melodien, Vocals, Arrangement, Mixing und die Entscheidungen, die einen Track hart halten, ohne ihn platt zu machen.",
+      "start": "Mit der Einführung starten",
+      "explore": "Kapitel öffnen"
+    },
+    "roadmap": {
+      "eyebrow": "Lehrplan",
+      "title": "Was der Kurs abdeckt",
+      "description": "Der Ablauf ist in Kapitel und Lektionen aufgeteilt, damit du entweder der Reihenfolge folgen oder direkt zum Thema springen kannst, das du brauchst.",
+      "empty": "Der Lehrplan wird noch aufgebaut."
+    },
+    "chapter": {
+      "eyebrow": "Kapitel",
+      "back": "Zurück zum Kurs",
+      "about": "Kapitelübersicht",
+      "about_description": "Nutze diese Seite als Karte des Kapitels, bevor du in die Lektionen gehst.",
+      "goals": "Lernziele",
+      "resources": "Kapitel-Ressourcen",
+      "lessons": "Lektionen",
+      "lessons_description": "Veröffentlichte Lektionen sind live. Kommende Lektionen bleiben sichtbar, damit die Richtung des Kapitels klar bleibt."
+    },
+    "lesson": {
+      "back": "Zurück zum Kapitel",
+      "duration": "Dauer",
+      "prerequisites": "Bevor du startest",
+      "tools": "Verwendete Tools",
+      "resources": "Nützliche Links",
+      "downloads": "Downloads",
+      "watch": "Auf YouTube ansehen",
+      "next": "Als Nächstes",
+      "notes": "Lektionsnotizen",
+      "open": "Lektion öffnen"
+    },
+    "status": {
+      "published": "Live",
+      "coming_soon": "Demnächst",
+      "draft": "Entwurf"
+    },
+    "placeholder": {
+      "title": "Diese Lektion ist geplant, aber noch nicht live.",
+      "description": "Der Fahrplan bleibt bewusst öffentlich, damit sichtbar ist, was als Nächstes kommt und wie das Kapitel aufgebaut ist."
+    },
+    "not_found": {
+      "title": "Kursseite nicht gefunden",
+      "description": "Das angeforderte Kapitel oder die Lektion existiert noch nicht oder ist noch privat.",
+      "cta": "Zurück zum Kurs"
+    },
+    "meta": {
+      "suffix": "Kostenloser Kurs | Lil SBD",
+      "landing_description": "Kostenloser Hard-Dance-Produktionskurs von Lil SBD mit Kicks, Sounddesign, Vocals, Arrangement, Mixing und Release-Themen."
+    },
+    "stats": {
+      "chapters": "Kapitel live oder geplant",
+      "lessons": "Lektionen live oder geplant",
+      "free_value": "100% kostenlos",
+      "free_label": "Keine Paywall, keine versteckte Stufe"
+    },
+    "cards": {
+      "lessons": "Lektionen"
+    }
+  }
 }

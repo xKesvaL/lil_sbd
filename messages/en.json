@@ -96,6 +96,71 @@
       "cta": "Start the course"
     }
   },
+  "course": {
+    "landing": {
+      "title": "Hard dance music production for anyone",
+      "description": "A free course built around kicks, melody work, vocals, arranging, mixing, and the decisions that make a track hard. It is aimed at hard music producers, but the techniques and process apply across EDM styles.",
+      "start": "Start with the introduction",
+      "total_lessons": "total lessons",
+      "total_chapters": "total chapters",
+      "free_course": "free course"
+    },
+    "roadmap": {
+      "eyebrow": "Curriculum",
+      "title": "What the course covers",
+      "description": "The roadmap is split into chapters and lessons so you can either go in order or jump straight to the topic you need.",
+      "empty": "The roadmap is still being assembled."
+    },
+    "chapter": {
+      "eyebrow": "Chapter",
+      "back": "Back to course",
+      "about": "Chapter overview",
+      "about_description": "Use this page as the chapter map before you go into the lesson pages.",
+      "goals": "Learning goals",
+      "resources": "Chapter resources",
+      "lessons": "Lessons",
+      "lessons_description": "Published lessons are live. Coming-soon lessons stay visible so you can see where the chapter is heading."
+    },
+    "lesson": {
+      "back": "Back to chapter",
+      "duration": "Duration",
+      "prerequisites": "Before you start",
+      "tools": "Tools used",
+      "resources": "Useful links",
+      "downloads": "Downloads",
+      "watch": "Watch on YouTube",
+      "next": "Up next",
+      "notes": "Lesson notes",
+      "open": "Open lesson"
+    },
+    "status": {
+      "published": "Live",
+      "coming_soon": "Coming soon",
+      "draft": "Draft"
+    },
+    "placeholder": {
+      "title": "This lesson is planned, but not live yet.",
+      "description": "The roadmap stays public on purpose so you can see what is coming and how the chapter is structured."
+    },
+    "not_found": {
+      "title": "Course page not found",
+      "description": "The chapter or lesson you asked for does not exist yet, or it is still private.",
+      "cta": "Back to the course"
+    },
+    "meta": {
+      "suffix": "Free Course | Lil SBD",
+      "landing_description": "Free hard dance music production course from Lil SBD, covering kicks, sound design, vocals, arrangement, mixing, and publishing."
+    },
+    "stats": {
+      "chapters": "chapters live or mapped",
+      "lessons": "lessons live or planned",
+      "free_value": "100% free",
+      "free_label": "No paywall, no gated tier"
+    },
+    "cards": {
+      "lessons": "lessons"
+    }
+  },
   "nav": {
     "about": "About",
     "contact": "Contact",

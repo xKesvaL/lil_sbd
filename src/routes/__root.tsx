@@ -5,6 +5,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { AudioProvider } from "#/components/audio/player.tsx";
 import { Footer } from "#/components/layout/footer.tsx";
 import { Header } from "#/components/layout/header.tsx";
+import DarkVeil from "#/components/react-bits/dark-veil.tsx";
 import { TooltipProvider } from "#/components/ui/tooltip.tsx";
 import { audioPlayerTracks } from "#/lib/songs.ts";
 import { m } from "#/paraglide/messages";
@@ -69,7 +70,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <AudioProvider tracks={audioPlayerTracks}>
               <Header />
 
-              {children}
+              <main id="top" className="relative overflow-hidden pt-20">
+                <div className="fixed inset-0 -z-10 opacity-70">
+                  <DarkVeil
+                    hueShift={0}
+                    noiseIntensity={0.07}
+                    scanlineIntensity={0.15}
+                    speed={1.5}
+                    scanlineFrequency={1}
+                    warpAmount={5}
+                    verticalOffset={0.2}
+                  />
+                </div>
+                {children}
+              </main>
 
               <Footer />
               <TanStackDevtools
