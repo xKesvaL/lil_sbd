@@ -95,22 +95,22 @@ function ListenNowPanel({
   const cardContent = (
     <div className={cn("space-y-4")}>
       <div className="flex items-start gap-4">
-        <div className="size-22 shrink-0 overflow-hidden rounded-[1.35rem] ring-1 ring-white/10">
+        <div className="size-22 shrink-0 overflow-hidden ring-1 ring-white/10">
           <LatestSongArtwork />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-medium uppercase tracking-[0.22em] text-zinc-800">
-            <span className="inline-flex items-center gap-1 rounded-full bg-black/80 px-2 py-1 text-[0.6rem] tracking-[0.18em] text-[#7dffad]">
+          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-medium uppercase tracking-[0.22em] text-background">
+            <span className="inline-flex items-center gap-1 bg-background/90 px-2 py-1 text-[0.6rem] tracking-[0.18em] text-[#7dffad]">
               <IconBrandSpotify className="size-3.5" />
               {m["common.spotify"]()}
             </span>
           </div>
 
-          <p className="mt-3 truncate text-lg font-semibold">
+          <p className="mt-3 truncate text-lg md:text-xl font-bold">
             {latestSong?.title ?? m["header.no_song_title"]()}
           </p>
-          <p className="truncate text-sm text-zinc-800">
+          <p className="truncate text-sm text-background">
             {latestSong?.artists.join(" & ") ?? m["header.no_song_description"]()}
           </p>
         </div>

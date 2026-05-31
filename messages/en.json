@@ -73,7 +73,9 @@
   "home": {
     "hero": {
       "title": "LIL Super Bass Distortion",
-      "description": "French uptempo producer making (very) hard music, but that still feels like music. I also share a free course for producers who want to learn the process and technique behind the sound."
+      "description": "French uptempo producer making (very) hard music, but that still feels like music. I also share a free course for producers who want to learn the process and technique behind the sound.",
+      "cta_course": "See the free course",
+      "cta_music": "Listen to LIL SBD"
     }
   },
   "nav": {
