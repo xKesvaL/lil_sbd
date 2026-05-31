@@ -1,41 +1,8 @@
-import {
-  IconBrandInstagram,
-  IconBrandSoundcloud,
-  IconBrandSpotify,
-  IconBrandTiktok,
-  IconBrandYoutube,
-} from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import DarkVeil from "#/components/react-bits/dark-veil.tsx";
+import { HomeCourse } from "#/containers/home/home-course.tsx";
 import { HomeHero } from "#/containers/home/home-hero.tsx";
-
-const socialLinks = [
-  {
-    href: "https://instagram.com/",
-    label: "Instagram",
-    Icon: IconBrandInstagram,
-  },
-  {
-    href: "https://tiktok.com/",
-    label: "TikTok",
-    Icon: IconBrandTiktok,
-  },
-  {
-    href: "https://open.spotify.com/",
-    label: "Spotify",
-    Icon: IconBrandSpotify,
-  },
-  {
-    href: "https://youtube.com/",
-    label: "YouTube",
-    Icon: IconBrandYoutube,
-  },
-  {
-    href: "https://soundcloud.com/",
-    label: "SoundCloud",
-    Icon: IconBrandSoundcloud,
-  },
-] as const;
+import { HomeSections } from "#/containers/home/home-sections.tsx";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -55,6 +22,9 @@ function Home() {
       </div>
 
       <HomeHero />
+      <HomeCourse />
+
+      <HomeSections />
     </main>
   );
 }

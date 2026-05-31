@@ -62,7 +62,7 @@
     "latest_song_description": "Open the newest track on your platform of choice.",
     "latest_song_label": "Latest release",
     "kicker": "Artist / Producer",
-    "no_song_description": "Add a song to songs.ts and the listen menu updates automatically.",
+    "no_song_description": "Your favorite idiot forgot to put the song links in. Please DM me so I can fix it",
     "no_song_title": "No release yet",
     "provider_summary": "Pick your platform",
     "tagline": "Uptempo hardcore from eastern France.",
@@ -74,8 +74,26 @@
     "hero": {
       "title": "LIL Super Bass Distortion",
       "description": "French uptempo producer making (very) hard music, but that still feels like music. I also share a free course for producers who want to learn the process and technique behind the sound.",
-      "cta_course": "See the free course",
-      "cta_music": "Listen to LIL SBD"
+      "cta_course": "See the free production course",
+      "cta_music": "Listen to LIL SBD",
+      "genre_producer": "Uptempo Producer",
+      "topic_music": {
+        "title": "My music",
+        "description": "I make (really) hard music, mainly uptempo. You can listen to it right here, in the player or through the links to your favorite platform."
+      },
+      "topic_course": {
+        "title": "HDM Course",
+        "description": "I share a free hard dance music production course because why not. I recommend it to beginner and intermediate producers, HDM or EDM."
+      },
+      "topic_contact": {
+        "title": "Contact",
+        "description": "For bookings, collabs, questions about the course, or just to say hi, DM me on instagram or send an email."
+      }
+    },
+    "course": {
+      "title": "A free course for hard music producers",
+      "description": "My free course on how to make hard dance music. It covers everything from kick design to mixing, and is built for any hard music producer, even electronic producers. It's 100% free.",
+      "cta": "Start the course"
     }
   },
   "nav": {

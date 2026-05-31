@@ -3,6 +3,28 @@ import type { Song } from "./providers";
 
 export const songs: Song[] = [
   {
+    slug: "ascension",
+    title: "ASCENSION",
+    artists: ["LIL SBD"],
+    releaseDate: new Date("2026-06-11"),
+    artworkUrl: "/covers/DEAD-OPS.png",
+    urlWAV: "/songs/ascension.wav",
+    urlMP3: "/songs/ascension.mp3",
+    links: {},
+    album: "DEAD OPS EP",
+  },
+  {
+    slug: "lock-the-doors",
+    title: "LOCK THE DOORS",
+    artists: ["LIL SBD"],
+    releaseDate: new Date("2026-06-11"),
+    artworkUrl: "/covers/LOCK-THE-DOORS.png",
+    urlWAV: "/songs/lock-the-doors.wav",
+    urlMP3: "/songs/lock-the-doors.mp3",
+    links: {},
+    album: "DEAD OPS EP",
+  },
+  {
     slug: "kino",
     title: "KINO",
     artists: ["LIL SBD"],

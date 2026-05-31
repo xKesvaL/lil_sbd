@@ -110,7 +110,7 @@ function ListenNowPanel({
           <p className="mt-3 truncate text-lg md:text-xl font-bold">
             {latestSong?.title ?? m["header.no_song_title"]()}
           </p>
-          <p className="truncate text-sm text-background">
+          <p className="truncate text-sm text-background text-foreground">
             {latestSong?.artists.join(" & ") ?? m["header.no_song_description"]()}
           </p>
         </div>
@@ -161,7 +161,7 @@ function ListenNowPanel({
           })}
         </div>
       ) : (
-        <div className="rounded-[1.2rem] border border-dashed border-border/70 bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
+        <div className="border border-dashed border-border/70 bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
           {m["header.no_song_description"]()}
         </div>
       )}
@@ -187,7 +187,7 @@ function ListenNowDropdown({ className }: { className?: string }) {
         align="end"
         sideOffset={24}
         alignOffset={-16}
-        className="w-88 max-w-[calc(100vw-1rem)] min-w-0 overflow-hidden ring ring-border bg-background/50 backdrop-blur-md p-4 text-white shadow-[0_30px_90px_-34px_rgba(0,0,0,0.92)"
+        className="w-90.75 max-w-[calc(100vw-1rem)] min-w-0 overflow-hidden border bg-background/50 backdrop-blur-xl p-4 text-white shadow-[0_30px_90px_-34px_rgba(0,0,0,0.92)"
       >
         <ListenNowPanel />
       </DropdownMenuContent>
@@ -218,7 +218,7 @@ function scrollToHash(hash: string) {
 export const Header = () => {
   return (
     <header className="fixed top-4 z-40 w-full kcontainer left-1/2 -translate-x-1/2">
-      <div className=" flex items-center gap-2 ring ring-border bg-background/50 p-4 shadow-lg shadow-black/10 backdrop-blur-md">
+      <div className=" flex items-center gap-2 border bg-background/50 p-4 shadow-lg shadow-black/10 backdrop-blur-xl">
         <Link to="/" className="min-w-0 flex gap-3">
           <img src="/logo192.png" alt="Lil SBD Logo" className="size-7" />
           <span className="block truncate text-sm font-medium sm:text-xl">

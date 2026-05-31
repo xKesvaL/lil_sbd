@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/a11y/useAnchorContent: <explanation> */
-import { IconBooks, IconMusic } from "@tabler/icons-react";
+import { IconArrowRight, IconBooks, IconMail, IconMusic } from "@tabler/icons-react";
+import { Link, type LinkOptions } from "@tanstack/react-router";
 import { BorderRotate } from "#/components/animated-gradient-border.tsx";
 import {
   AudioPlayer,
@@ -20,36 +21,34 @@ import { sortedSongs } from "#/lib/songs.ts";
 import { cn } from "#/lib/utils.ts";
 import { m } from "#/paraglide/messages";
 
-function TopicTile({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="rounded-3xl border border-border/50 bg-card/62 p-5">
-      <div className="flex flex-col gap-2">
-        <p className="text-base font-medium">{title}</p>
-        <p className="text-sm leading-7 text-muted-foreground">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({
+function TopicTile({
+  to,
   icon: Icon,
   title,
   description,
 }: {
+  to: LinkOptions["to"];
   icon: typeof IconMusic;
   title: string;
   description: string;
 }) {
   return (
-    <div className="flex gap-4 rounded-2xl border border-border/50 bg-background/65 p-4">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border/50 bg-background">
-        <Icon />
+    <Link
+      to={to}
+      className="group flex h-full flex-col gap-3 border bg-background/50 backdrop-blur-md p-4 transition-colors hover:bg-card/80"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex rounded-full size-10 shrink-0 items-center justify-center border border-primary/35 bg-primary/12 text-primary">
+          <Icon className="size-5" />
+        </div>
+        <IconArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
       </div>
-      <div className="flex flex-co l gap-1">
-        <p className="font-medium">{title}</p>
+
+      <div className="space-y-1.5">
+        <p className="text-base font-medium">{title}</p>
         <p className="text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -72,13 +71,18 @@ export const HomeHero = () => {
 
   return (
     <section className="kcontainer section flex flex-col gap-4 items-center justify-center">
-      <div className="flex flex-col lg:flex-row w-full justify-between gap-8 md:gap-12 lg:gap-20">
+      <div className="grid lg:grid-cols-[2fr_1fr] w-full justify-between gap-8 md:gap-12 lg:gap-20">
         <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <div className="uppercase tracking-widest text-xs bg-background/50 px-2 py-1 border font-medium">
+              {m["home.hero.genre_producer"]()}
+            </div>
+          </div>
           <h1 className="text-7xl font-bold italic [font-variant:small-caps]">
             {m["home.hero.title"]()}
           </h1>
           <p className="text-lg max-w-3xl">{m["home.hero.description"]()}</p>
-          <div className="flex gap-4 items-center mt-4">
+          <div className="flex gap-4 items-center">
             <Button size="lg" className="pl-3">
               <IconBooks />
               {m["home.hero.cta_course"]()}
@@ -92,8 +96,28 @@ export const HomeHero = () => {
               {m["home.hero.cta_music"]()}
             </Button>
           </div>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <TopicTile
+              title={m["home.hero.topic_music.title"]()}
+              description={m["home.hero.topic_music.description"]()}
+              to="/"
+              icon={IconMusic}
+            />
+            <TopicTile
+              title={m["home.hero.topic_course.title"]()}
+              description={m["home.hero.topic_course.description"]()}
+              to="/"
+              icon={IconBooks}
+            />
+            <TopicTile
+              title={m["home.hero.topic_contact.title"]()}
+              description={m["home.hero.topic_contact.description"]()}
+              to="/"
+              icon={IconMail}
+            />
+          </div>
         </div>
-        <Card className="flex-1 bg-background/50 backdrop-blur-xl">
+        <Card className="bg-background/50 backdrop-blur-xl ring-0 border">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">{m["common.latest_releases"]()}</CardTitle>
