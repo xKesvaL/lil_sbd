@@ -23,6 +23,6 @@
   },
   "registries": {
     "@react-bits": "https://reactbits.dev/r/{name}.json",
-    "@audio": "https://audio-ui.xyz/r/{name}.json"
+    "@audiocn": "https://audiocn.dev/r/{name}.json"
   }
 }
