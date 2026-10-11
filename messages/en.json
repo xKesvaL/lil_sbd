@@ -10,7 +10,7 @@
   "homee_badge_genre": "Uptempo Hardcore",
   "homee_badge_location": "Eastern France",
   "homee_badge_mission": "Zaag-driven, still musical",
-  "homee_contact_description": "For bookings, collabs, questions, or course interest, email is the cleanest point of contact. The socials are here if you just want to keep up with the project.",
+  "homee_contact_description": "For bookings, collabs, or general questions, email is the cleanest point of contact. The socials are here if you just want to keep up with the project.",
   "homee_contact_email_cta": "Email Lil SBD",
   "homee_contact_title": "Bookings, socials, and direct contact",
   "homee_course_body": "The course is free and aimed first at hard music producers, but the workflow translates well to anyone making EDM. It covers kicks, sound design, mixing, samples, and the decisions that make a track actually hit instead of just clipping harder.",
@@ -73,7 +73,7 @@
   "home": {
     "hero": {
       "title": "LIL Super Bass Distortion",
-      "description": "French uptempo producer making (very) hard music, but that still feels like music. I also share a free course for producers who want to learn the process and technique behind the sound.",
+      "description": "French uptempo producer making (very) hard music, but that still feels like music.",
       "cta_course": "See the free production course",
       "cta_music": "Listen to LIL SBD",
       "genre_producer": "Uptempo Producer",
@@ -87,7 +87,7 @@
       },
       "topic_contact": {
         "title": "Contact",
-        "description": "For bookings, collabs, questions about the course, or just to say hi, DM me on instagram or send an email."
+        "description": "For bookings, collabs, questions, or just to say hi, DM me on instagram or send an email."
       }
     },
     "course": {
@@ -169,7 +169,7 @@
   },
   "header_tagline": "Uptempo hardcore from eastern France.",
   "homee_menu_open_label": "Open navigation",
-  "homee_meta_description": "Lil SBD is an uptempo hardcore artist from eastern France, sharing heavy music, featured releases, and a free hard music production course.",
+  "homee_meta_description": "Lil SBD is an uptempo hardcore artist from eastern France, sharing heavy music and featured releases.",
   "homee_meta_title": "Lil SBD | Uptempo Hardcore",
   "homee_music_badge": "Music",
   "homee_music_description": "If you are new to the project, start here. These cards are meant to point people toward the newest material, the heavier edge, and the more musical side of the sound.",
@@ -179,7 +179,7 @@
   "homee_nav_course": "Course",
   "homee_nav_music": "Music",
   "homee_page": "Home page",
-  "homee_panel_description": "A clean first stop whether you are here to listen, follow the project, or get into the production side.",
+  "homee_panel_description": "A clean first stop whether you are here to listen, follow the project, or get in touch.",
   "homee_panel_row_1_description": "Platform links and release entry points for people who want to hear the project first.",
   "homee_panel_row_1_title": "Music",
   "homee_panel_row_2_description": "A direct line for bookings, collabs, and anything that needs an actual reply instead of a feed refresh.",

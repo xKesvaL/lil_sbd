@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { HomeCourse } from "#/containers/home/home-course.tsx";
+// import { HomeCourse } from "#/containers/home/home-course.tsx";
 import { HomeHero } from "#/containers/home/home-hero.tsx";
 import { HomeSections } from "#/containers/home/home-sections.tsx";
 
@@ -10,8 +10,7 @@ function Home() {
   return (
     <>
       <HomeHero />
-      <HomeCourse />
-
+      {/* <HomeCourse /> */}
       <HomeSections />
     </>
   );

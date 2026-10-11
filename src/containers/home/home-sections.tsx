@@ -1,6 +1,6 @@
 import {
-  IconArrowRight,
-  IconBooks,
+  // IconArrowRight,
+  // IconBooks,
   IconBrandInstagram,
   IconBrandSoundcloud,
   IconBrandSpotify,
@@ -84,26 +84,26 @@ const featureCards = [
     description: () => m["homee_feature_2_description"](),
     Icon: IconMusic,
   },
-  {
-    title: () => m["homee_feature_3_title"](),
-    description: () => m["homee_feature_3_description"](),
-    Icon: IconBooks,
-  },
+  // {
+  //   title: () => m["homee_feature_3_title"](),
+  //   description: () => m["homee_feature_3_description"](),
+  //   Icon: IconBooks,
+  // },
 ] as const;
 
 const focusItems = [
   () => m["homee_focus_item_1"](),
   () => m["homee_focus_item_2"](),
   () => m["homee_focus_item_3"](),
-  () => m["homee_focus_item_4"](),
+  // () => m["homee_focus_item_4"](),
 ] as const;
 
-const courseItems = [
-  () => m["homee_course_item_1"](),
-  () => m["homee_course_item_2"](),
-  () => m["homee_course_item_3"](),
-  () => m["homee_course_item_4"](),
-] as const;
+// const courseItems = [
+//   () => m["homee_course_item_1"](),
+//   () => m["homee_course_item_2"](),
+//   () => m["homee_course_item_3"](),
+//   () => m["homee_course_item_4"](),
+// ] as const;
 
 const faqItems = [
   {
@@ -111,11 +111,11 @@ const faqItems = [
     question: () => m["homee_faq_1_question"](),
     answer: () => m["homee_faq_1_answer"](),
   },
-  {
-    value: "course",
-    question: () => m["homee_faq_2_question"](),
-    answer: () => m["homee_faq_2_answer"](),
-  },
+  // {
+  //   value: "course",
+  //   question: () => m["homee_faq_2_question"](),
+  //   answer: () => m["homee_faq_2_answer"](),
+  // },
   {
     value: "contact",
     question: () => m["homee_faq_3_question"](),
@@ -194,8 +194,8 @@ export function HomeSections() {
 
   return (
     <>
-      <section className="kcontainer section">
-        <div className="grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.1fr)]">
+      <section id="about" className="kcontainer section">
+        <div className="grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,1.2fr)]">
           {featureCards.map(({ title, description, Icon }) => (
             <Card key={title()} className="border border-border/60 bg-card/40 backdrop-blur-sm">
               <CardHeader>
@@ -314,7 +314,8 @@ export function HomeSections() {
         </div>
       </section>
 
-      <section id="course" className="kcontainer section pt-0">
+      {/* Course section commented out */}
+      {/* <section id="course" className="kcontainer section pt-0">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-10">
           <div className="space-y-5 rounded-[2rem] border border-border/60 bg-card/45 p-6 backdrop-blur-sm md:p-8">
             <SectionHeading
@@ -359,7 +360,7 @@ export function HomeSections() {
             </Card>
           </div>
         </div>
-      </section>
+      </section> */}
 
       <section className="kcontainer section pt-0">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-10">

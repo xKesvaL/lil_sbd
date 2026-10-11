@@ -198,7 +198,7 @@ function ListenNowDropdown({ className }: { className?: string }) {
 const navItems = [
   { to: "/", hash: "about", label: () => m["nav.about"]() },
   { to: "/", hash: "music", label: () => m["nav.music"]() },
-  { to: "/course", label: () => m["nav.course"]() },
+  // { to: "/course", label: () => m["nav.course"]() },
   { to: "/", hash: "contact", label: () => m["nav.contact"]() },
 ] as const;
 
