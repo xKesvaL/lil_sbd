@@ -66,8 +66,15 @@ export const HomeHero = () => {
   const currentSong = sortedSongs.find((song) => song.slug === currentTrack?.id) || sortedSongs[0];
 
   const providerLinks = currentSong
-    ? listenProviderOrder.slice(0, 4).flatMap((provider) => {
-        const href = currentSong.links[provider];
+    ? listenProviderOrder.flatMap((provider) => {
+        const href =
+          "spotify" in currentSong.links
+            ? provider === "youtube"
+              ? undefined
+              : currentSong.links[provider]
+            : provider === "soundcloud" || provider === "youtube"
+              ? currentSong.links[provider]
+              : undefined;
 
         if (!href) {
           return [];
@@ -93,12 +100,7 @@ export const HomeHero = () => {
               <IconBooks />
               {m["home.hero.cta_course"]()}
             </Button> */}
-            <Button
-              size="lg"
-              className="pl-3"
-              nativeButton={false}
-              render={<a href="#music" />}
-            >
+            <Button size="lg" className="pl-3" nativeButton={false} render={<a href="#music" />}>
               <IconMusic />
               {m["home.hero.cta_music"]()}
             </Button>

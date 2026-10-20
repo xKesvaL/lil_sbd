@@ -60,7 +60,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={getLocale()}>
+    <html
+      lang={getLocale()}
+      className="dark scroll-smooth scroll-pt-28 md:scroll-pt-32 lg:scroll-pt-36"
+    >
       <head>
         <HeadContent />
       </head>

@@ -180,25 +180,17 @@ const loadAndPlayTrack = (params: LoadAndPlayTrackParams): void => {
   const isLiveStream =
     track.live === true || (track.duration !== undefined && $htmlAudio.isLive(track.duration));
 
+  const currentState = get();
+
   set({
     currentTrack: track,
     currentQueueIndex: queueIndex,
-    isLoading: true,
-    isBuffering: true,
-    isError: false,
-    errorMessage: null,
+    currentTime: 0,
+    progress: 0,
+    bufferedTime: 0,
+    ...(isLiveStream && currentState.playbackRate !== 1 ? { playbackRate: 1 } : {}),
+    ...getSuccessState({ isPlaying: true }),
   });
-
-  // Reset playback rate to 1.0 for live streams
-  if (isLiveStream) {
-    const currentState = get();
-    if (currentState.playbackRate !== 1) {
-      set({ playbackRate: 1 });
-    }
-  }
-
-  // State will be updated by provider when audio loads/plays
-  set(getSuccessState({ isPlaying: true }));
 };
 
 const useAudioStore = create<AudioStore>()(
@@ -269,14 +261,6 @@ const useAudioStore = create<AudioStore>()(
 
       previous() {
         const state = get();
-        const RESTART_THRESHOLD = 3;
-
-        // If track has more than 3 seconds and shuffle is not enabled, restart the track
-        if (state.currentTime > RESTART_THRESHOLD && !state.shuffleEnabled) {
-          set({ currentTime: 0, progress: 0 });
-          return;
-        }
-
         const prevIndex = calculatePreviousIndex({
           queue: state.queue,
           currentQueueIndex: state.currentQueueIndex,
