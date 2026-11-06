@@ -1,16 +1,21 @@
 import { IconArrowLeft } from "@tabler/icons-react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, HeadContent, Link, Scripts } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { MiniPlayer } from "#/components/audio/mini-player.tsx";
+import { Toaster } from "sonner";
 import { AudioProvider } from "#/components/audio/player.tsx";
 import { Footer } from "#/components/layout/footer.tsx";
 import { Header } from "#/components/layout/Header.tsx";
 import DarkVeil from "#/components/react-bits/dark-veil.tsx";
 import { buttonVariants } from "#/components/ui/button.tsx";
 import { TooltipProvider } from "#/components/ui/tooltip.tsx";
-import { audioPlayerTracks, latestSong } from "#/lib/songs.ts";
+import { audioPlayerTracks } from "#/lib/songs.ts";
 import { cn } from "#/lib/utils.ts";
 import { m } from "#/paraglide/messages";
 import { getLocale } from "#/paraglide/runtime";
@@ -136,6 +141,12 @@ function NotFound() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+  const isAdminStudio =
+    pathname.startsWith("/admin") || /^\/(en|fr|de)\/admin(\/|$)/.test(pathname);
+
   return (
     <html
       lang={getLocale()}
@@ -148,9 +159,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <PostHogProvider>
           <TooltipProvider>
             <AudioProvider tracks={audioPlayerTracks}>
-              <Header />
+              {!isAdminStudio ? <Header /> : null}
 
-              <main id="top" className="relative overflow-hidden pt-20">
+              <main
+                id="top"
+                className={cn("relative", !isAdminStudio && "overflow-hidden pt-20")}
+              >
                 <div className="fixed inset-0 -z-10 opacity-70">
                   <DarkVeil
                     hueShift={0}
@@ -165,8 +179,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 {children}
               </main>
 
-              <Footer />
-              <MiniPlayer />
+              {!isAdminStudio ? <Footer /> : null}
+              <Toaster theme="dark" richColors position="bottom-right" />
               <TanStackDevtools
                 config={{
                   position: "bottom-right",

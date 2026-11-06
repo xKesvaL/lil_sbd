@@ -9,12 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DownloadRouteImport } from './routes/download'
+import { Route as CourseRouteImport } from './routes/course'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CourseIndexRouteImport } from './routes/course.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as CourseChapterSlugRouteImport } from './routes/course.$chapterSlug'
+import { Route as AdminSocialsRouteImport } from './routes/admin.socials'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as CourseChapterSlugIndexRouteImport } from './routes/course.$chapterSlug.index'
+import { Route as CourseChapterSlugLessonSlugRouteImport } from './routes/course.$chapterSlug.$lessonSlug'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const DownloadRoute = DownloadRouteImport.update({
   id: '/download',
   path: '/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,31 +36,129 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CourseIndexRoute = CourseIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CourseRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const CourseChapterSlugRoute = CourseChapterSlugRouteImport.update({
+  id: '/$chapterSlug',
+  path: '/$chapterSlug',
+  getParentRoute: () => CourseRoute,
+} as any)
+const AdminSocialsRoute = AdminSocialsRouteImport.update({
+  id: '/socials',
+  path: '/socials',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AdminRoute,
+} as any)
+const CourseChapterSlugIndexRoute = CourseChapterSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CourseChapterSlugRoute,
+} as any)
+const CourseChapterSlugLessonSlugRoute =
+  CourseChapterSlugLessonSlugRouteImport.update({
+    id: '/$lessonSlug',
+    path: '/$lessonSlug',
+    getParentRoute: () => CourseChapterSlugRoute,
+  } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/download': typeof DownloadRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/course': typeof CourseRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/socials': typeof AdminSocialsRoute
+  '/course/$chapterSlug': typeof CourseChapterSlugRouteWithChildren
+  '/admin/': typeof AdminIndexRoute
+  '/course/': typeof CourseIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
+  '/course/$chapterSlug/': typeof CourseChapterSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/download': typeof DownloadRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/socials': typeof AdminSocialsRoute
+  '/admin': typeof AdminIndexRoute
+  '/course': typeof CourseIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
+  '/course/$chapterSlug': typeof CourseChapterSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/download': typeof DownloadRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/course': typeof CourseRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/socials': typeof AdminSocialsRoute
+  '/course/$chapterSlug': typeof CourseChapterSlugRouteWithChildren
+  '/admin/': typeof AdminIndexRoute
+  '/course/': typeof CourseIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
+  '/course/$chapterSlug/': typeof CourseChapterSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/download'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/course'
+    | '/admin/login'
+    | '/admin/socials'
+    | '/course/$chapterSlug'
+    | '/admin/'
+    | '/course/'
+    | '/api/auth/$'
+    | '/course/$chapterSlug/$lessonSlug'
+    | '/course/$chapterSlug/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/download'
-  id: '__root__' | '/' | '/download'
+  to:
+    | '/'
+    | '/admin/login'
+    | '/admin/socials'
+    | '/admin'
+    | '/course'
+    | '/api/auth/$'
+    | '/course/$chapterSlug/$lessonSlug'
+    | '/course/$chapterSlug'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/course'
+    | '/admin/login'
+    | '/admin/socials'
+    | '/course/$chapterSlug'
+    | '/admin/'
+    | '/course/'
+    | '/api/auth/$'
+    | '/course/$chapterSlug/$lessonSlug'
+    | '/course/$chapterSlug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DownloadRoute: typeof DownloadRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  CourseRoute: typeof CourseRouteWithChildren
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -65,12 +184,110 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/course/': {
+      id: '/course/'
+      path: '/'
+      fullPath: '/course/'
+      preLoaderRoute: typeof CourseIndexRouteImport
+      parentRoute: typeof CourseRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/course/$chapterSlug': {
+      id: '/course/$chapterSlug'
+      path: '/$chapterSlug'
+      fullPath: '/course/$chapterSlug'
+      preLoaderRoute: typeof CourseChapterSlugRouteImport
+      parentRoute: typeof CourseRoute
+    }
+    '/admin/socials': {
+      id: '/admin/socials'
+      path: '/socials'
+      fullPath: '/admin/socials'
+      preLoaderRoute: typeof AdminSocialsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/course/$chapterSlug/': {
+      id: '/course/$chapterSlug/'
+      path: '/'
+      fullPath: '/course/$chapterSlug/'
+      preLoaderRoute: typeof CourseChapterSlugIndexRouteImport
+      parentRoute: typeof CourseChapterSlugRoute
+    }
+    '/course/$chapterSlug/$lessonSlug': {
+      id: '/course/$chapterSlug/$lessonSlug'
+      path: '/$lessonSlug'
+      fullPath: '/course/$chapterSlug/$lessonSlug'
+      preLoaderRoute: typeof CourseChapterSlugLessonSlugRouteImport
+      parentRoute: typeof CourseChapterSlugRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminLoginRoute: typeof AdminLoginRoute
+  AdminSocialsRoute: typeof AdminSocialsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminLoginRoute: AdminLoginRoute,
+  AdminSocialsRoute: AdminSocialsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface CourseChapterSlugRouteChildren {
+  CourseChapterSlugLessonSlugRoute: typeof CourseChapterSlugLessonSlugRoute
+  CourseChapterSlugIndexRoute: typeof CourseChapterSlugIndexRoute
+}
+
+const CourseChapterSlugRouteChildren: CourseChapterSlugRouteChildren = {
+  CourseChapterSlugLessonSlugRoute: CourseChapterSlugLessonSlugRoute,
+  CourseChapterSlugIndexRoute: CourseChapterSlugIndexRoute,
+}
+
+const CourseChapterSlugRouteWithChildren =
+  CourseChapterSlugRoute._addFileChildren(CourseChapterSlugRouteChildren)
+
+interface CourseRouteChildren {
+  CourseChapterSlugRoute: typeof CourseChapterSlugRouteWithChildren
+  CourseIndexRoute: typeof CourseIndexRoute
+}
+
+const CourseRouteChildren: CourseRouteChildren = {
+  CourseChapterSlugRoute: CourseChapterSlugRouteWithChildren,
+  CourseIndexRoute: CourseIndexRoute,
+}
+
+const CourseRouteWithChildren =
+  CourseRoute._addFileChildren(CourseRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DownloadRoute: DownloadRoute,
+  AdminRoute: AdminRouteWithChildren,
+  CourseRoute: CourseRouteWithChildren,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
