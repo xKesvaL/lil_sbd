@@ -35,8 +35,6 @@ class HtmlAudio {
   private playPromise: Promise<void> | null = null;
   private lastVolume = 1;
   private fadeTimeout: NodeJS.Timeout | null = null;
-  private retryAttempts = 0;
-  private readonly maxRetries = 3;
   private readonly eventTarget = new EventTarget();
   private readonly LOAD_TIMEOUT_LIVE = 60_000;
   private readonly LOAD_TIMEOUT_NORMAL = 30_000;
@@ -67,27 +65,15 @@ class HtmlAudio {
     }
 
     audio.addEventListener("error", () => {
-      // Silent error handling - errors are handled via retry logic
-
-      if (this.retryAttempts < this.maxRetries) {
-        this.retryAttempts += 1;
-
-        setTimeout(() => {
-          this.reloadAudio();
-        }, 1000);
-      }
-
       this.eventTarget.dispatchEvent(new CustomEvent("audioError"));
     });
 
     audio.addEventListener("playing", () => {
-      this.retryAttempts = 0;
       this.eventTarget.dispatchEvent(new CustomEvent("bufferingEnd"));
       this.eventTarget.dispatchEvent(new CustomEvent("playbackStarted"));
     });
 
     audio.addEventListener("canplaythrough", () => {
-      this.retryAttempts = 0;
       this.eventTarget.dispatchEvent(new CustomEvent("bufferingEnd"));
     });
 
@@ -128,7 +114,7 @@ class HtmlAudio {
   cleanup(): void {
     if (this.audio) {
       this.audio.pause();
-      this.audio.src = "";
+      this.audio.removeAttribute("src");
       this.audio.load();
     }
 
@@ -193,8 +179,8 @@ class HtmlAudio {
     }
 
     try {
-      this.retryAttempts = 0;
-      if (audio.src === url) {
+      const resolvedUrl = new URL(url, window.location.href).href;
+      if (audio.src === resolvedUrl && audio.readyState >= audio.HAVE_METADATA) {
         if (audio.currentTime !== startTime && !isLiveStream) {
           audio.currentTime = startTime;
         }
@@ -202,8 +188,6 @@ class HtmlAudio {
       }
 
       audio.pause();
-      audio.src = "";
-
       audio.src = url;
       audio.preload = "auto";
 
@@ -248,7 +232,7 @@ class HtmlAudio {
           cleanup();
 
           // Don't set currentTime for live streams
-          if (startTime > 0 && !isLiveStream) {
+          if (!isLiveStream) {
             audio.currentTime = startTime;
           }
           resolve();
@@ -305,38 +289,6 @@ class HtmlAudio {
       // Silent error - throw without console logging
       throw error;
     }
-  }
-
-  private reloadAudio(): void {
-    if (!this.isClient()) {
-      return;
-    }
-
-    const audio = this.ensureAudio();
-    const currentTime = audio.currentTime;
-    const wasPlaying = !audio.paused;
-    const currentSrc = audio.src;
-
-    audio.pause();
-    audio.src = "";
-    audio.load();
-    audio.src = currentSrc;
-    audio.preload = "auto";
-    audio.load();
-
-    const setTimeAndPlay = () => {
-      if (audio.readyState >= audio.HAVE_METADATA) {
-        audio.currentTime = currentTime;
-        if (wasPlaying) {
-          this.play().catch(() => {
-            // Silent error handling
-          });
-        }
-        audio.removeEventListener("loadedmetadata", setTimeAndPlay);
-      }
-    };
-
-    audio.addEventListener("loadedmetadata", setTimeAndPlay);
   }
 
   pause(): void {

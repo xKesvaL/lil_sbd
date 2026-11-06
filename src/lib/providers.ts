@@ -1,22 +1,38 @@
-import { IconBrandApple, IconBrandSoundcloud, IconBrandSpotify } from "@tabler/icons-react";
+import {
+  IconBrandApple,
+  IconBrandSoundcloud,
+  IconBrandSpotify,
+  IconBrandYoutube,
+} from "@tabler/icons-react";
 import type { ComponentType, SVGProps } from "react";
 import { IconBrandYoutubeMusic } from "#/components/icons/icon-brand-youtube-music.tsx";
 import { m } from "#/paraglide/messages";
 
-export const listenProviderOrder = ["spotify", "soundcloud", "youtubeMusic", "appleMusic"] as const;
+export const listenProviderOrder = [
+  "spotify",
+  "soundcloud",
+  "youtubeMusic",
+  "appleMusic",
+  "youtube",
+] as const;
 
 export type ListenProvider = (typeof listenProviderOrder)[number];
 
+type PlatformSong = Record<ListenProvider, string>;
+
+type BootlegSong = Record<Extract<ListenProvider, "youtube" | "soundcloud">, string>;
 export interface Song {
   slug: string;
   title: string;
   artists: string[];
   releaseDate: Date;
   artworkUrl?: string;
-  links: Partial<Record<ListenProvider, string>>;
+  links: PlatformSong | BootlegSong;
   urlWAV: string;
   urlMP3: string;
   album?: string;
+  /** Set to `false` to hide this track from the free download page. Defaults to downloadable. */
+  downloadable?: boolean;
 }
 
 type ProviderConfig = {
@@ -48,5 +64,10 @@ export const providerConfig: Record<ListenProvider, ProviderConfig> = {
     Icon: IconBrandApple,
     className:
       "bg-linear-to-r from-[#fa243c] to-[#fb5c74] text-white hover:from-[#ff3d56] hover:to-[#ff7288] focus-visible:ring-[#fb5c74]/40",
+  },
+  youtube: {
+    label: () => m["common.youtube_video"](),
+    Icon: IconBrandYoutube,
+    className: "bg-[#ff0000] text-white hover:bg-[#ff1a1a] focus-visible:ring-[#ff0000]/40",
   },
 };

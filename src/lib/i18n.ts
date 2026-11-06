@@ -58,19 +58,25 @@ export const translatedPathnames = createTranslatedPathnames({
     de: "/",
     fr: "/",
   },
-  "/course": {
-    en: "/course",
-    de: "/kurs",
-    fr: "/cours",
+  // "/course": {
+  "/download": {
+    en: "/download",
+    de: "/download",
+    fr: "/telecharger",
   },
-  "/course/$chapterSlug": {
-    en: "/course/$chapterSlug",
-    de: "/kurs/$chapterSlug",
-    fr: "/cours/$chapterSlug",
-  },
-  "/course/$chapterSlug/$lessonSlug": {
-    en: "/course/$chapterSlug/$lessonSlug",
-    de: "/kurs/$chapterSlug/$lessonSlug",
-    fr: "/cours/$chapterSlug/$lessonSlug",
-  },
+  // "/course": {
+  //   en: "/course",
+  //   de: "/kurs",
+  //   fr: "/cours",
+  // },
+  // "/course/$chapterSlug": {
+  //   en: "/course/$chapterSlug",
+  //   de: "/kurs/$chapterSlug",
+  //   fr: "/cours/$chapterSlug",
+  // },
+  // "/course/$chapterSlug/$lessonSlug": {
+  //   en: "/course/$chapterSlug/$lessonSlug",
+  //   de: "/kurs/$chapterSlug/$lessonSlug",
+  //   fr: "/cours/$chapterSlug/$lessonSlug",
+  // },
 });

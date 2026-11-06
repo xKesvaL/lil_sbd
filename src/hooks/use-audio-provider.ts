@@ -56,7 +56,8 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
   const { htmlAudio } = useAudio();
   const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
   const errorRetryCountRef = useRef<number>(0);
-  const lastSeekTimeRef = useRef<number>(0);
+  const lastSeekTimeRef = useRef<number>(-1);
+  const isLoadingTrackRef = useRef<boolean>(false);
 
   const setState = useCallback(
     (
@@ -76,15 +77,47 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
       const tracksChanged =
         currentQueue.length === 0 ||
         currentQueue.length !== tracks.length ||
-        currentQueue.some((track, index) => track.id !== tracks[index]?.id);
+        currentQueue.some(
+          (track, index) =>
+            track.id !== tracks[index]?.id || track.url !== tracks[index]?.url
+        );
 
-      if (tracksChanged) {
-        const firstTrack = tracks[0];
+      const existingTrackIds = new Set(currentQueue.map((track) => track.id));
+      const hasNewTrack =
+        currentQueue.length > 0 &&
+        (tracks.some((track) => !existingTrackIds.has(track.id)) ||
+          (!state.shuffleEnabled && currentQueue[0]?.id !== tracks[0]?.id));
+
+      const matchedIndex = state.currentTrack
+        ? tracks.findIndex((t) => t.id === state.currentTrack?.id)
+        : -1;
+      const shouldResetToFirst =
+        hasNewTrack ||
+        matchedIndex === -1 ||
+        (!state.isPlaying && state.currentTime <= 0);
+      const nextQueueIndex = shouldResetToFirst ? 0 : matchedIndex;
+      const nextTrack = tracks[nextQueueIndex] ?? tracks[0];
+      const isTrackReset =
+        hasNewTrack || state.currentTrack?.id !== nextTrack?.id;
+
+      if (
+        tracksChanged ||
+        isTrackReset ||
+        state.currentTrack?.url !== nextTrack?.url ||
+        state.currentQueueIndex !== nextQueueIndex
+      ) {
         useAudioStore.setState({
           queue: tracks,
-          currentTrack: state.currentTrack || firstTrack,
-          currentQueueIndex:
-            state.currentQueueIndex === -1 ? 0 : state.currentQueueIndex,
+          currentTrack: nextTrack,
+          currentQueueIndex: nextQueueIndex,
+          ...(isTrackReset
+            ? {
+                currentTime: 0,
+                progress: 0,
+                duration: 0,
+                isPlaying: false,
+              }
+            : {}),
         });
       }
     }
@@ -145,6 +178,10 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
   }, [htmlAudio]);
 
   const throttledTimeUpdate = useCallback(() => {
+    if (isLoadingTrackRef.current) {
+      return;
+    }
+
     const now = Date.now();
     if (now - lastUpdateTimeRef.current < THROTTLE_INTERVAL) {
       return;
@@ -177,7 +214,7 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
     } catch {
       // Silent error: failed to preload next track
       if (preloadAudioRef.current) {
-        preloadAudioRef.current.src = "";
+        preloadAudioRef.current.removeAttribute("src");
       }
     }
   }, []);
@@ -248,6 +285,9 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
     };
 
     const handlePause = () => {
+      if (isLoadingTrackRef.current) {
+        return;
+      }
       forceTimeUpdate();
       setState({ isPlaying: false, isBuffering: false });
     };
@@ -374,7 +414,7 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
     const restoreState = async () => {
       const state = useAudioStore.getState();
 
-      if (!state.currentTrack || state.currentTime <= 0) {
+      if (!state.currentTrack?.url) {
         return;
       }
 
@@ -399,7 +439,11 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
         htmlAudio.setMuted(muted);
         htmlAudio.setPlaybackRate(playbackRate);
 
-        setState({ isLoading: false, isPlaying: false });
+        setState({
+          isLoading: false,
+          isPlaying: false,
+          duration: htmlAudio.getDuration() || state.duration || 0,
+        });
       } catch {
         setState({
           isError: true,
@@ -449,6 +493,10 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
     const unsubscribeIsPlaying = useAudioStore.subscribe(
       (state) => state.isPlaying,
       async (isPlaying) => {
+        if (isLoadingTrackRef.current) {
+          return;
+        }
+
         const audioElement = htmlAudio.getAudioElement();
         if (!audioElement) {
           return;
@@ -466,6 +514,23 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
 
         try {
           if (shouldPlay) {
+            const state = useAudioStore.getState();
+            if (state.currentTrack?.url) {
+              const resolvedUrl = new URL(
+                state.currentTrack.url,
+                window.location.href
+              ).href;
+              if (
+                audioElement.src !== resolvedUrl ||
+                audioElement.readyState < audioElement.HAVE_METADATA
+              ) {
+                await htmlAudio.load({
+                  url: state.currentTrack.url,
+                  startTime: state.currentTime,
+                  isLiveStream: false,
+                });
+              }
+            }
             await htmlAudio.play();
           } else {
             htmlAudio.pause();
@@ -479,7 +544,10 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
     const unsubscribeCurrentTrack = useAudioStore.subscribe(
       (state) => state.currentTrack,
       async (track, prevTrack) => {
-        if (!track || track.id === prevTrack?.id) {
+        if (
+          !track?.url ||
+          (track.id === prevTrack?.id && track.url === prevTrack?.url)
+        ) {
           return;
         }
 
@@ -488,6 +556,9 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
           return;
         }
 
+        isLoadingTrackRef.current = true;
+        lastSeekTimeRef.current = -1;
+
         try {
           await htmlAudio.load({
             url: track.url,
@@ -495,11 +566,14 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
             isLiveStream: false,
           });
 
+          isLoadingTrackRef.current = false;
+
           const currentState = useAudioStore.getState();
           if (currentState.isPlaying) {
             await htmlAudio.play();
           }
         } catch {
+          isLoadingTrackRef.current = false;
           useAudioStore.getState().setError("Error loading track");
         }
       }
@@ -542,7 +616,7 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
       htmlAudio.removeEventListener("bufferUpdate", handleBufferUpdate);
 
       if (preloadAudioRef.current) {
-        preloadAudioRef.current.src = "";
+        preloadAudioRef.current.removeAttribute("src");
         preloadAudioRef.current = null;
       }
 
@@ -571,7 +645,7 @@ export function useAudioProvider({ tracks = [] }: { tracks?: Track[] } = {}) {
           (newQueue.length !== oldQueue.length || newQueue.length === 0) &&
           preloadAudioRef.current
         ) {
-          preloadAudioRef.current.src = "";
+          preloadAudioRef.current.removeAttribute("src");
         }
       }
     );

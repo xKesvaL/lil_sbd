@@ -72,9 +72,12 @@ import { useAudio } from "@/hooks/use-audio";
 import { useAudioStore } from "@/lib/audio-store";
 import { formatDuration, type Track } from "@/lib/html-audio";
 import { cn } from "@/lib/utils";
+import {
+  ParameterSlider,
+  ParameterSliderControl,
+  ParameterSliderLabel,
+} from "@/components/ui/parameter-slider";
 import { useAudioProvider } from "../../hooks/use-audio-provider";
-import { Fader } from "./fader";
-import { Transport } from "./transport";
 
 const PLAYBACK_SPEEDS = [
   { value: 0.5, label: "0.5x" },
@@ -273,16 +276,13 @@ const AudioPlayerTimeDisplay = ({
   );
 };
 
-const AudioPlayerSeekBar = ({
-  className,
-  ...props
-}: Omit<React.ComponentProps<typeof Transport>, "value" | "onSeek" | "bufferedValue">) => {
+const AudioPlayerSeekBar = ({ className, ...props }: Omit<React.ComponentProps<"div">, "children">) => {
   const currentTime = useAudioStore((state) => state.currentTime);
   const duration = useAudioStore((state) => state.duration);
   const seek = useAudioStore((state) => state.seek);
-  const bufferedTime = useAudioStore((state) => state.bufferedTime);
   const { htmlAudio } = useAudio();
   const isLiveStream = htmlAudio.isLive(duration);
+  const [dragValue, setDragValue] = React.useState<number | null>(null);
 
   let progress = 0;
   if (isLiveStream) {
@@ -291,42 +291,37 @@ const AudioPlayerSeekBar = ({
     progress = (currentTime / duration) * 100;
   }
 
-  let bufferedProgress = 0;
-  if (isLiveStream) {
-    bufferedProgress = 100;
-  } else if (duration) {
-    bufferedProgress = (bufferedTime / duration) * 100;
-  }
-
   return (
-    <Transport
-      aria-label="Seek"
-      bufferedValue={bufferedProgress}
+    <ParameterSlider
       className={cn("min-w-20 flex-1", className)}
       data-slot="audio-seek-bar"
       disabled={isLiveStream}
-      freezeValuesWhileDragging
-      onSeek={(nextProgress) => {
+      max={100}
+      min={0}
+      onValueChange={setDragValue}
+      onValueCommitted={(nextProgress) => {
+        setDragValue(null);
         if (!isLiveStream && duration > 0) {
-          const newTime = (nextProgress / 100) * duration;
-          seek(newTime);
+          seek((nextProgress / 100) * duration);
         }
       }}
-      value={progress}
+      step={0.1}
+      value={dragValue ?? progress}
       {...props}
-    />
+    >
+      <ParameterSliderLabel className="sr-only">Seek</ParameterSliderLabel>
+      <ParameterSliderControl />
+    </ParameterSlider>
   );
 };
+
 
 const AudioPlayerVolume = ({
   className,
   size = "icon",
   variant = "outline",
-  ...props
-}: Omit<
-  React.ComponentProps<typeof Fader>,
-  "value" | "onValueChange" | "min" | "max" | "orientation" | "size"
-> & {
+}: {
+  className?: string;
   size?: VariantProps<typeof buttonVariants>["size"];
   variant?: VariantProps<typeof buttonVariants>["variant"];
 }) => {
@@ -365,7 +360,7 @@ const AudioPlayerVolume = ({
       <DropdownMenuTrigger
         render={
           <AudioPlayerButton
-            className={cn("hidden md:flex", className)}
+            className={cn("flex", className)}
             data-slot="audio-volume-button"
             size={size}
             tooltipLabel={isMuted ? "Muted" : `Volume ${Math.round(effectiveVolumePercent)}%`}
@@ -403,16 +398,17 @@ const AudioPlayerVolume = ({
                 />
               </AudioPlayerButton>
 
-              <Fader
+              <ParameterSlider
+                className="min-w-28 flex-1"
                 max={100}
                 min={0}
                 onValueChange={handleVolumeChange}
-                orientation="horizontal"
-                size="sm"
                 step={1}
                 value={effectiveVolumePercent}
-                {...props}
-              />
+              >
+                <ParameterSliderLabel className="sr-only">Volume</ParameterSliderLabel>
+                <ParameterSliderControl />
+              </ParameterSlider>
               <AudioPlayerButton
                 aria-hidden="true"
                 aria-readonly

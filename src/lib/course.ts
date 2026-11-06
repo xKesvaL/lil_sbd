@@ -1,9 +1,10 @@
-import {
-  allCourseChapters,
-  allCourseLessons,
-  type CourseChapter,
-  type CourseLesson,
-} from "content-collections";
+import * as contentCollections from "content-collections";
+import type { CourseChapter, CourseLesson } from "content-collections";
+
+const allCourseChapters: CourseChapter[] =
+  "allCourseChapters" in contentCollections ? contentCollections.allCourseChapters : [];
+const allCourseLessons: CourseLesson[] =
+  "allCourseLessons" in contentCollections ? contentCollections.allCourseLessons : [];
 
 export type CoursePageStatus = "published" | "coming-soon" | "draft";
 

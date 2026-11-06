@@ -21,9 +21,9 @@ import { Route as CourseChapterSlugIndexRouteImport } from './routes/course.$cha
 import { Route as CourseChapterSlugLessonSlugRouteImport } from './routes/course.$chapterSlug.$lessonSlug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const CourseRoute = CourseRouteImport.update({
-  id: '/course',
-  path: '/course',
+const DownloadRoute = DownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -163,11 +163,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/course': {
-      id: '/course'
-      path: '/course'
-      fullPath: '/course'
-      preLoaderRoute: typeof CourseRouteImport
+    '/download': {
+      id: '/download'
+      path: '/download'
+      fullPath: '/download'
+      preLoaderRoute: typeof DownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {

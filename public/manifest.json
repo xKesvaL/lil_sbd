@@ -1,6 +1,7 @@
 {
-  "short_name": "TanStack App",
-  "name": "Create TanStack App Sample",
+  "short_name": "LIL SBD",
+  "name": "LIL SBD | Uptempo Hardcore",
+  "description": "French uptempo hardcore producer making heavy music that still feels like music.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,8 +19,9 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#151124",
+  "background_color": "#0a0912"
 }
+

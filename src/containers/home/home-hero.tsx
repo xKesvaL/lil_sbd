@@ -1,5 +1,10 @@
 /** biome-ignore-all lint/a11y/useAnchorContent: <explanation> */
-import { IconArrowRight, IconBooks, IconMail, IconMusic } from "@tabler/icons-react";
+import {
+  IconArrowRight,
+  // IconBooks,
+  IconMail,
+  IconMusic,
+} from "@tabler/icons-react";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { BorderRotate } from "#/components/animated-gradient-border.tsx";
 import {
@@ -23,11 +28,13 @@ import { m } from "#/paraglide/messages";
 
 function TopicTile({
   to,
+  hash,
   icon: Icon,
   title,
   description,
 }: {
   to: LinkOptions["to"];
+  hash?: string;
   icon: typeof IconMusic;
   title: string;
   description: string;
@@ -35,6 +42,7 @@ function TopicTile({
   return (
     <Link
       to={to}
+      hash={hash}
       className="group flex h-full flex-col gap-3 border bg-background/50 backdrop-blur-md p-4 transition-colors hover:bg-card/80"
     >
       <div className="flex items-start justify-between gap-4">
@@ -58,8 +66,15 @@ export const HomeHero = () => {
   const currentSong = sortedSongs.find((song) => song.slug === currentTrack?.id) || sortedSongs[0];
 
   const providerLinks = currentSong
-    ? listenProviderOrder.slice(0, 4).flatMap((provider) => {
-        const href = currentSong.links[provider];
+    ? listenProviderOrder.flatMap((provider) => {
+        const href =
+          "spotify" in currentSong.links
+            ? provider === "youtube"
+              ? undefined
+              : currentSong.links[provider]
+            : provider === "soundcloud" || provider === "youtube"
+              ? currentSong.links[provider]
+              : undefined;
 
         if (!href) {
           return [];
@@ -81,41 +96,49 @@ export const HomeHero = () => {
           <h1 className="text-7xl font-bold italic">{m["home.hero.title"]()}</h1>
           <p className="text-lg max-w-3xl">{m["home.hero.description"]()}</p>
           <div className="flex gap-4 items-center">
-            <Button size="lg" className="pl-3" nativeButton={false} render={<Link to="/course" />}>
+            {/* <Button size="lg" className="pl-3" nativeButton={false} render={<Link to="/course" />}>
               <IconBooks />
               {m["home.hero.cta_course"]()}
+            </Button> */}
+            <Button size="lg" className="pl-3" nativeButton={false} render={<a href="#music" />}>
+              <IconMusic />
+              {m["home.hero.cta_music"]()}
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="pl-3 border-primary bg-background/50 backdrop-blur-md"
+              className="pl-3 border-border/60 bg-background/50 backdrop-blur-md"
+              nativeButton={false}
+              render={<a href="#contact" />}
             >
-              <IconMusic />
-              {m["home.hero.cta_music"]()}
+              <IconMail />
+              {m["nav.contact"]()}
             </Button>
           </div>
-          <div className="grid grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
             <TopicTile
               title={m["home.hero.topic_music.title"]()}
               description={m["home.hero.topic_music.description"]()}
               to="/"
+              hash="music"
               icon={IconMusic}
             />
-            <TopicTile
+            {/* <TopicTile
               title={m["home.hero.topic_course.title"]()}
               description={m["home.hero.topic_course.description"]()}
               to="/course"
               icon={IconBooks}
-            />
+            /> */}
             <TopicTile
               title={m["home.hero.topic_contact.title"]()}
               description={m["home.hero.topic_contact.description"]()}
               to="/"
+              hash="contact"
               icon={IconMail}
             />
           </div>
         </div>
-        <Card className="bg-background/50 backdrop-blur-xl ring-0 border">
+        <Card id="hero-player" className="bg-background/50 backdrop-blur-xl ring-0 border">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">{m["common.latest_releases"]()}</CardTitle>

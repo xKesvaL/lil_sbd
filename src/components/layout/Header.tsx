@@ -11,7 +11,7 @@ import { listenProviderOrder, providerConfig } from "#/lib/providers.ts";
 import { latestSong } from "@/lib/songs.ts";
 import { cn } from "@/lib/utils.ts";
 import { m } from "@/paraglide/messages";
-import ParaglideLocaleSwitcher from "../LocaleSwitcher";
+// import ParaglideLocaleSwitcher from "../LocaleSwitcher";
 import { buttonVariants } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Separator } from "../ui/separator";
@@ -79,7 +79,14 @@ function ListenNowPanel({
 }) {
   const providerLinks = latestSong
     ? listenProviderOrder.flatMap((provider) => {
-        const href = latestSong.links[provider];
+        const href =
+          "spotify" in latestSong.links
+            ? provider === "youtube"
+              ? undefined
+              : latestSong.links[provider]
+            : provider === "soundcloud" || provider === "youtube"
+              ? latestSong.links[provider]
+              : undefined;
 
         if (!href) {
           return [];
@@ -89,7 +96,9 @@ function ListenNowPanel({
       })
     : [];
 
-  const featuredHref = latestSong?.links.spotify ?? providerLinks[0]?.href;
+  const featuredHref =
+    (latestSong && "spotify" in latestSong.links ? latestSong.links.spotify : undefined) ??
+    providerLinks[0]?.href;
   const cardClassName =
     "block border border-white/10 bg-[#090909] p-4 text-left text-white shadow-[0_22px_80px_-30px_rgba(0,0,0,0.92)] transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none";
   const cardContent = (
@@ -187,7 +196,7 @@ function ListenNowDropdown({ className }: { className?: string }) {
         align="end"
         sideOffset={24}
         alignOffset={-16}
-        className="w-90.75 max-w-[calc(100vw-1rem)] min-w-0 overflow-hidden border bg-background/50 backdrop-blur-xl p-4 text-white shadow-[0_30px_90px_-34px_rgba(0,0,0,0.92)"
+        className="w-90.75 max-w-[calc(100vw-1rem)] min-w-0 overflow-hidden border bg-background/50 backdrop-blur-xl p-4 text-white shadow-[0_30px_90px_-34px_rgba(0,0,0,0.92)]"
       >
         <ListenNowPanel />
       </DropdownMenuContent>
@@ -195,12 +204,13 @@ function ListenNowDropdown({ className }: { className?: string }) {
   );
 }
 
-const navItems = [
-  { to: "/", hash: "about", label: () => m["nav.about"]() },
+type NavItem = { to: "/" | "/download"; hash?: string; label: () => string };
+const navItems: readonly NavItem[] = [
   { to: "/", hash: "music", label: () => m["nav.music"]() },
-  { to: "/course", label: () => m["nav.course"]() },
+  { to: "/download", label: () => m["nav.download"]() },
+  // { to: "/course", label: () => m["nav.course"]() },
   { to: "/", hash: "contact", label: () => m["nav.contact"]() },
-] as const;
+];
 
 export const Header = () => {
   return (
@@ -232,9 +242,9 @@ export const Header = () => {
         </nav>
 
         <div className="ml-auto hidden items-center gap-3 md:flex">
-          <ParaglideLocaleSwitcher compact />
+          {/* <ParaglideLocaleSwitcher compact />
 
-          <Separator orientation="vertical" className="h-8" />
+          <Separator orientation="vertical" className="h-8" /> */}
 
           <ListenNowDropdown />
         </div>
@@ -262,7 +272,7 @@ export const Header = () => {
               </SheetHeader>
 
               <div className="flex flex-col gap-2 p-6">
-                <ParaglideLocaleSwitcher className="mb-2" />
+                {/* <ParaglideLocaleSwitcher className="mb-2" /> */}
                 {navItems.map((item) => (
                   <SheetClose
                     key={`${item.to}${item.hash ?? ""}`}
