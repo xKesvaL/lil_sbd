@@ -3,7 +3,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { db, ensureSchemaInitialized } from "#/db";
 import * as schema from "#/db/schema";
-import { ensureUserWorkspaceSeeded } from "#/db/seed-data";
 
 const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {};
 
@@ -58,13 +57,6 @@ export const auth = betterAuth({
             }
           }
           return { data: newUser };
-        },
-        after: async (createdUser) => {
-          try {
-            await ensureUserWorkspaceSeeded(createdUser.id, createdUser.name);
-          } catch (err) {
-            console.error("Failed to seed initial producer workspace:", err);
-          }
         },
       },
     },

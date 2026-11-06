@@ -206,6 +206,12 @@ CREATE TABLE IF NOT EXISTS "hashtag_presets" (
   "tags" jsonb DEFAULT '[]'::jsonb NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL
 );
+
+DELETE FROM "social_posts" WHERE "id" LIKE 'post-starter-%';
+DELETE FROM "idea_templates" WHERE "is_system" = true OR "id" LIKE 'sys-idea-%';
+DELETE FROM "hashtag_presets" WHERE "is_system" = true OR "id" LIKE 'sys-tags-%';
+DELETE FROM "artist_catalog_items" WHERE "id" LIKE 'cat-%-course-%';
+DELETE FROM "artist_catalog_items" WHERE "id" LIKE 'cat-%' AND "id" NOT LIKE 'cat-sync-%' AND "id" !~ '^cat-.*-[0-9]{13}$';
 `;
 
 export async function ensureSchemaInitialized(): Promise<void> {

@@ -85,7 +85,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
               <main
                 id="top"
-                className={cn("relative overflow-hidden", !isAdminStudio && "pt-20")}
+                className={cn("relative", !isAdminStudio && "overflow-hidden pt-20")}
               >
                 <div className="fixed inset-0 -z-10 opacity-70">
                   <DarkVeil

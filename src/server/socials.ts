@@ -233,6 +233,7 @@ export const instantiateIdeaTemplateServerFn = createServerFn({ method: "POST" }
 export const createCustomIdeaTemplateServerFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
+      id: z.string().optional(),
       title: z.string().min(1),
       description: z.string().min(1),
       category: z.enum([
@@ -336,4 +337,11 @@ export const createHashtagPresetServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { createHashtagPresetImpl } = await import("./socials.server");
     return createHashtagPresetImpl(data);
+  });
+
+export const deleteHashtagPresetServerFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    const { deleteHashtagPresetImpl } = await import("./socials.server");
+    return deleteHashtagPresetImpl(data);
   });

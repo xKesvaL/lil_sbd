@@ -17,11 +17,8 @@ import {
   type SocialPlatform,
   socialPosts,
 } from "#/db/schema";
-import {
-  CAMPAIGN_ROLLOUT_BLUEPRINTS,
-  ensureUserWorkspaceSeeded,
-  syncLilSbdCatalogForUser,
-} from "#/db/seed-data";
+import { CAMPAIGN_ROLLOUT_BLUEPRINTS } from "#/lib/social-blueprints";
+import { songs } from "#/lib/songs";
 import { auth, getConfiguredAuthInfo } from "#/lib/auth";
 
 export async function requireSessionImpl() {
@@ -34,6 +31,35 @@ export async function requireSessionImpl() {
     throw new Error("UNAUTHORIZED");
   }
   return session;
+}
+
+export async function ensureArtistProfile(userId: string, userName?: string) {
+  await ensureSchemaInitialized();
+  const existingProfile = await db
+    .select()
+    .from(artistProfiles)
+    .where(eq(artistProfiles.userId, userId))
+    .limit(1);
+
+  if (existingProfile.length === 0) {
+    await db.insert(artistProfiles).values({
+      id: `profile-${userId}`,
+      userId,
+      stageName: userName?.trim() || "LIL SBD",
+      genre: "Uptempo Hardcore / Hard Dance",
+      tagline: "Zaag-driven uptempo hardcore that still feels like music.",
+      primaryLanguage: "bilingual",
+      defaultBioLink: "https://lilsbd.com",
+      weeklyPostTarget: 5,
+      targetPlatforms: [
+        "instagram_reels",
+        "tiktok",
+        "youtube_shorts",
+        "instagram_carousel",
+        "instagram_story",
+      ],
+    });
+  }
 }
 
 function interpolateTemplateText(
@@ -71,7 +97,7 @@ export async function getStudioDashboardImpl() {
   const session = await requireSessionImpl();
   const userId = session.user.id;
 
-  await ensureUserWorkspaceSeeded(userId, session.user.name);
+  await ensureArtistProfile(userId, session.user.name);
 
   const [profileRows, catalog, campaigns, posts, templates, presets] = await Promise.all([
     db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
@@ -94,12 +120,12 @@ export async function getStudioDashboardImpl() {
       .select()
       .from(ideaTemplates)
       .where(or(isNull(ideaTemplates.userId), eq(ideaTemplates.userId, userId)))
-      .orderBy(desc(ideaTemplates.isSystem), desc(ideaTemplates.createdAt)),
+      .orderBy(desc(ideaTemplates.createdAt)),
     db
       .select()
       .from(hashtagPresets)
       .where(or(isNull(hashtagPresets.userId), eq(hashtagPresets.userId, userId)))
-      .orderBy(desc(hashtagPresets.isSystem), asc(hashtagPresets.name)),
+      .orderBy(asc(hashtagPresets.name)),
   ]);
 
   return {
@@ -143,7 +169,44 @@ export async function updateArtistProfileImpl(data: {
 
 export async function syncLilSbdCatalogImpl() {
   const session = await requireSessionImpl();
-  return syncLilSbdCatalogForUser(session.user.id);
+  const userId = session.user.id;
+  let syncedCount = 0;
+
+  for (const song of songs) {
+    const existing = await db
+      .select({ id: artistCatalogItems.id })
+      .from(artistCatalogItems)
+      .where(and(eq(artistCatalogItems.userId, userId), eq(artistCatalogItems.slug, song.slug)))
+      .limit(1);
+
+    if (existing.length === 0) {
+      await db.insert(artistCatalogItems).values({
+        id: `cat-sync-${userId}-${song.slug}`,
+        userId,
+        type: "track",
+        slug: song.slug,
+        title: song.title,
+        albumOrChapter: song.album ?? "Single",
+        releaseDate: song.releaseDate,
+        artworkUrl: song.artworkUrl ?? "/covers/DEAD-OPS.png",
+        audioPreviewUrl: song.urlMP3,
+        bpm: song.slug === "ascension" || song.slug === "lock-the-doors" ? 205 : 200,
+        keySignature: "F Minor",
+        genreTag: "Uptempo Hardcore",
+        description: `${song.title} by ${song.artists.join(" & ")}${song.album ? ` (${song.album})` : ""}`,
+        streamingLinks: {
+          spotify: song.links.spotify,
+          soundcloud: song.links.soundcloud,
+          youtubeMusic: song.links.youtubeMusic,
+          appleMusic: song.links.appleMusic,
+        },
+        hookTimestamps: [],
+      });
+      syncedCount++;
+    }
+  }
+
+  return { syncedCount };
 }
 
 export async function upsertCatalogItemImpl(data: {
@@ -486,6 +549,7 @@ export async function instantiateIdeaTemplateImpl(data: {
 }
 
 export async function createCustomIdeaTemplateImpl(data: {
+  id?: string;
   title: string;
   description: string;
   category: IdeaCategory;
@@ -504,6 +568,38 @@ export async function createCustomIdeaTemplateImpl(data: {
 }) {
   const session = await requireSessionImpl();
   const userId = session.user.id;
+
+  if (data.id) {
+    await db
+      .update(ideaTemplates)
+      .set({
+        category: data.category,
+        pillar: data.pillar,
+        title: data.title,
+        description: data.description,
+        difficulty: data.difficulty,
+        recommendedPlatforms: data.recommendedPlatforms,
+        hookFormulaEn: data.hookFormulaEn,
+        hookFormulaFr: data.hookFormulaFr || data.hookFormulaEn,
+        hookVariantsEn: { showcase: data.hookFormulaEn },
+        hookVariantsFr: { showcase: data.hookFormulaFr || data.hookFormulaEn },
+        captionTemplateEn: data.captionTemplateEn,
+        captionTemplateFr: data.captionTemplateFr || data.captionTemplateEn,
+        defaultCtaEn: data.defaultCtaEn,
+        defaultCtaFr: data.defaultCtaFr || data.defaultCtaEn,
+        defaultShotList: data.defaultShotList,
+        suggestedHashtags: data.suggestedHashtags,
+        whyItWorks: data.whyItWorks,
+      })
+      .where(
+        and(
+          eq(ideaTemplates.id, data.id),
+          or(eq(ideaTemplates.userId, userId), isNull(ideaTemplates.userId)),
+        ),
+      );
+    return { id: data.id };
+  }
+
   const id = `tpl-${userId}-${Date.now()}`;
 
   await db.insert(ideaTemplates).values({
@@ -539,8 +635,7 @@ export async function deleteCustomIdeaTemplateImpl(data: { id: string }) {
     .where(
       and(
         eq(ideaTemplates.id, data.id),
-        eq(ideaTemplates.userId, session.user.id),
-        eq(ideaTemplates.isSystem, false),
+        or(eq(ideaTemplates.userId, session.user.id), isNull(ideaTemplates.userId)),
       ),
     );
   return { ok: true };
@@ -699,4 +794,17 @@ export async function createHashtagPresetImpl(data: {
   });
 
   return { id };
+}
+
+export async function deleteHashtagPresetImpl(data: { id: string }) {
+  const session = await requireSessionImpl();
+  await db
+    .delete(hashtagPresets)
+    .where(
+      and(
+        eq(hashtagPresets.id, data.id),
+        or(eq(hashtagPresets.userId, session.user.id), isNull(hashtagPresets.userId)),
+      ),
+    );
+  return { ok: true };
 }

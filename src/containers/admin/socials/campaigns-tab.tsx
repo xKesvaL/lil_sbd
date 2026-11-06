@@ -1,6 +1,8 @@
 import {
   IconCalendarEvent,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconRocket,
   IconSparkles,
   IconTrash,
@@ -56,10 +58,11 @@ export function CampaignsTab({
       : new Date();
     return first.toISOString().slice(0, 10);
   });
+  const [showBlueprintPreview, setShowBlueprintPreview] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const selectedCatalogItem =
-    catalog.find((c) => c.id === selectedCatalogId) ?? catalog[0];
+    catalog.find((c) => c.id === selectedCatalogId) ?? null;
   const activeBlueprint = CAMPAIGN_ROLLOUT_BLUEPRINTS[campaignType];
 
   const handleCatalogChange = (id: string) => {
@@ -68,6 +71,8 @@ export function CampaignsTab({
     if (item) {
       if (item.type === "course_lesson") {
         setCampaignType("course_promo");
+      } else if (item.type === "ep") {
+        setCampaignType("ep_rollout");
       } else {
         setCampaignType("single_release");
       }
@@ -78,11 +83,16 @@ export function CampaignsTab({
   };
 
   const handleGenerateCampaign = async () => {
+    if (!selectedCatalogItem && !customTitle.trim()) {
+      toast.error("Select a track from your catalog or enter a campaign title.");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const titleToUse =
         customTitle.trim() ||
-        `${selectedCatalogItem?.title ?? "Release"} — ${activeBlueprint.label.split("(")[0].trim()}`;
+        `${selectedCatalogItem?.title ?? "New Release"} — ${activeBlueprint.label.split("(")[0].trim()}`;
 
       const res = await generateReleaseCampaignServerFn({
         data: {
@@ -118,6 +128,9 @@ export function CampaignsTab({
     }
   };
 
+  const previewTitleLabel =
+    selectedCatalogItem?.title || customTitle.trim() || "Your Release";
+
   return (
     <div className="space-y-6">
       {/* Campaign Auto-Generator Studio Card */}
@@ -129,29 +142,30 @@ export function CampaignsTab({
               Release Campaign Auto-Generator
             </Badge>
             <span className="text-xs text-muted-foreground">
-              Auto-populates hooks, EN/FR captions, DAW shot lists, and calendar dates
+              Auto-populates hooks, EN/FR captions, shot lists, and calendar dates
             </span>
           </div>
-          <CardTitle className="text-2xl">
-            Turn any track or course module into a multi-week rollout in 1 click
+          <CardTitle className="text-xl sm:text-2xl">
+            Schedule a multi-post rollout in 1 click
           </CardTitle>
           <CardDescription>
-            Pick a track from your catalog, choose a rollout blueprint, set your anchor date, and
-            let the studio schedule the entire campaign into your Kanban & Calendar.
+            Choose a track or enter a project title, pick a rollout blueprint, set your anchor
+            date, and generate all scheduled posts into your pipeline.
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-4">
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                1. Select Track / Course Asset
+                1. Track / Asset
               </label>
               <select
                 value={selectedCatalogId}
                 onChange={(e) => handleCatalogChange(e.target.value)}
                 className="w-full border border-border/70 bg-background/85 px-3 py-2 text-sm font-medium text-foreground"
               >
+                <option value="">Custom / Standalone Release</option>
                 {catalog.map((item) => (
                   <option key={item.id} value={item.id}>
                     [{item.type === "course_lesson" ? "COURSE" : "TRACK"}] {item.title}
@@ -195,119 +209,134 @@ export function CampaignsTab({
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                4. Custom Campaign Name (Optional)
+                4. Campaign Title {!selectedCatalogItem ? "*" : "(Optional)"}
               </label>
               <input
                 type="text"
                 value={customTitle}
                 onChange={(e) => setCustomTitle(e.target.value)}
-                placeholder={`${selectedCatalogItem?.title ?? "ASCENSION"} Rollout`}
+                placeholder={
+                  selectedCatalogItem
+                    ? `${selectedCatalogItem.title} Rollout`
+                    : "e.g., NEW SINGLE Rollout"
+                }
                 className="w-full border border-border/70 bg-background/85 px-3 py-2 text-sm text-foreground"
               />
             </div>
           </div>
 
-          {/* Live Rollout Timeline Preview */}
-          <div className="space-y-2.5 border border-border/70 bg-background/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary-foreground">
-                Blueprint Preview: {activeBlueprint.label} (
-                {activeBlueprint.steps.length} Scheduled Posts)
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {activeBlueprint.description}
-              </span>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowBlueprintPreview((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              {showBlueprintPreview ? (
+                <IconChevronUp className="size-4 text-primary" />
+              ) : (
+                <IconChevronDown className="size-4 text-primary" />
+              )}
+              {showBlueprintPreview ? "Hide" : "Preview"} {activeBlueprint.steps.length} Scheduled
+              Posts in Blueprint
+            </button>
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {activeBlueprint.steps.map((step, idx) => {
-                const stepDate = new Date(
-                  new Date(releaseDate).getTime() + step.dayOffset * 86_400_000,
-                );
-                const dayBadge =
-                  step.dayOffset === 0
-                    ? "RELEASE DAY"
-                    : step.dayOffset < 0
-                      ? `Day ${step.dayOffset}`
-                      : `Day +${step.dayOffset}`;
-                const pillarMeta = PILLAR_META[step.pillar];
-
-                return (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "flex flex-col justify-between gap-2 border p-3 text-xs",
-                      step.dayOffset === 0
-                        ? "border-primary bg-primary/15"
-                        : "border-border/60 bg-card/50",
-                    )}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={cn(
-                            "font-mono text-[0.68rem] font-bold",
-                            step.dayOffset === 0
-                              ? "text-primary-foreground"
-                              : "text-primary",
-                          )}
-                        >
-                          {dayBadge}
-                        </span>
-                        <span className="text-[0.65rem] text-muted-foreground">
-                          {stepDate.toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </span>
-                      </div>
-                      <p className="font-semibold text-foreground">
-                        {step.titleSuffix.replaceAll(
-                          "{title}",
-                          selectedCatalogItem?.title ?? "Track",
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span
-                        className={cn(
-                          "border px-1.5 py-0.5 text-[0.6rem]",
-                          pillarMeta.badgeClass,
-                        )}
-                      >
-                        {pillarMeta.label}
-                      </span>
-                      <div className="flex gap-1">
-                        {step.platforms.slice(0, 3).map((p) => {
-                          const pMeta = PLATFORM_META[p];
-                          return (
-                            <pMeta.Icon
-                              key={p}
-                              className="size-3.5 text-muted-foreground"
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex justify-end">
             <Button
-              size="lg"
               disabled={isGenerating}
               onClick={handleGenerateCampaign}
             >
               <IconSparkles className="size-4" />
               {isGenerating
                 ? "Generating Campaign..."
-                : `Generate ${activeBlueprint.steps.length}-Post Rollout for ${selectedCatalogItem?.title ?? "Track"}`}
+                : `Generate ${activeBlueprint.steps.length}-Post Rollout`}
             </Button>
           </div>
+
+          {/* Collapsible Blueprint Timeline Preview */}
+          {showBlueprintPreview ? (
+            <div className="space-y-2.5 border border-border/70 bg-background/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary-foreground">
+                  {activeBlueprint.label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {activeBlueprint.description}
+                </span>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {activeBlueprint.steps.map((step, idx) => {
+                  const stepDate = new Date(
+                    new Date(releaseDate).getTime() + step.dayOffset * 86_400_000,
+                  );
+                  const dayBadge =
+                    step.dayOffset === 0
+                      ? "RELEASE DAY"
+                      : step.dayOffset < 0
+                        ? `Day ${step.dayOffset}`
+                        : `Day +${step.dayOffset}`;
+                  const pillarMeta = PILLAR_META[step.pillar];
+
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "flex flex-col justify-between gap-2 border p-3 text-xs",
+                        step.dayOffset === 0
+                          ? "border-primary bg-primary/15"
+                          : "border-border/60 bg-card/50",
+                      )}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={cn(
+                              "font-mono text-[0.68rem] font-bold",
+                              step.dayOffset === 0
+                                ? "text-primary-foreground"
+                                : "text-primary",
+                            )}
+                          >
+                            {dayBadge}
+                          </span>
+                          <span className="text-[0.65rem] text-muted-foreground">
+                            {stepDate.toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-foreground">
+                          {step.titleSuffix.replaceAll("{title}", previewTitleLabel)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span
+                          className={cn(
+                            "border px-1.5 py-0.5 text-[0.6rem]",
+                            pillarMeta.badgeClass,
+                          )}
+                        >
+                          {pillarMeta.label}
+                        </span>
+                        <div className="flex gap-1">
+                          {step.platforms.slice(0, 3).map((p) => {
+                            const pMeta = PLATFORM_META[p];
+                            return (
+                              <pMeta.Icon
+                                key={p}
+                                className="size-3.5 text-muted-foreground"
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -319,9 +348,8 @@ export function CampaignsTab({
 
         {campaigns.length === 0 ? (
           <div className="border border-dashed border-border/70 bg-card/30 p-8 text-center text-sm text-muted-foreground">
-            No campaigns generated yet. Choose a track or course lesson above and click{" "}
-            <strong className="text-foreground">Generate Rollout</strong> to build your first
-            multi-week campaign!
+            No campaigns generated yet. Use the generator above to build a multi-post rollout
+            around your next release.
           </div>
         ) : (
           campaigns.map((camp) => {
@@ -345,34 +373,36 @@ export function CampaignsTab({
                 className="border border-border/60 bg-card/45 backdrop-blur-sm"
               >
                 <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     {linkedAsset?.artworkUrl ? (
                       <img
                         src={linkedAsset.artworkUrl}
                         alt={linkedAsset.title}
-                        className="size-14 object-cover border border-white/15"
+                        className="size-12 shrink-0 border border-white/15 object-cover sm:size-14"
                       />
                     ) : null}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg">{camp.title}</CardTitle>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="truncate text-base sm:text-lg">
+                          {camp.title}
+                        </CardTitle>
                         <Badge variant="outline" className="text-xs">
                           {postedCount}/{campPosts.length} Posted ({pct}%)
                         </Badge>
                       </div>
-                      <CardDescription>
+                      <CardDescription className="truncate">
                         Anchor Date:{" "}
                         {new Date(camp.releaseDate).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
-                        })}{" "}
-                        • {camp.notes}
+                        })}
+                        {camp.notes ? ` • ${camp.notes}` : ""}
                       </CardDescription>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -427,9 +457,11 @@ export function CampaignsTab({
                           <p className="text-xs font-bold leading-snug text-foreground">
                             {post.title}
                           </p>
-                          <p className="line-clamp-2 text-[0.7rem] text-muted-foreground">
-                            &ldquo;{post.onScreenHookEn}&rdquo;
-                          </p>
+                          {post.onScreenHookEn ? (
+                            <p className="line-clamp-2 text-[0.7rem] text-muted-foreground">
+                              &ldquo;{post.onScreenHookEn}&rdquo;
+                            </p>
+                          ) : null}
                         </div>
                       );
                     })}

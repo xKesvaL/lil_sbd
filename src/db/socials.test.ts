@@ -1,35 +1,21 @@
-import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { CAMPAIGN_ROLLOUT_BLUEPRINTS } from "#/lib/social-blueprints";
+import { ensureArtistProfile } from "#/server/socials.server";
 import { db, ensureSchemaInitialized } from "./index";
 import {
   artistCatalogItems,
   artistProfiles,
+  hashtagPresets,
   ideaTemplates,
   socialPosts,
   user,
 } from "./schema";
-import {
-  CAMPAIGN_ROLLOUT_BLUEPRINTS,
-  ensureSystemVaultSeeded,
-  ensureUserWorkspaceSeeded,
-} from "./seed-data";
 
-describe("Social Growth Studio — Multi-Producer Database & Seeding", () => {
-  it("initializes Postgres schema and seeds the system Hard Dance Idea Vault", async () => {
+describe("Social Growth Studio — Clean Database & Multi-Producer Workspace", () => {
+  it("initializes Postgres schema with zero seeded posts, templates, catalog items, or presets", async () => {
     await ensureSchemaInitialized();
-    await ensureSystemVaultSeeded();
 
-    const templates = await db.select().from(ideaTemplates);
-    expect(templates.length).toBeGreaterThanOrEqual(8);
-
-    const zaagTemplate = templates.find((t) => t.id === "sys-idea-zaag-anatomy");
-    expect(zaagTemplate).toBeDefined();
-    expect(zaagTemplate?.isSystem).toBe(true);
-    expect(zaagTemplate?.hookFormulaEn).toContain("{track_title}");
-    expect(zaagTemplate?.hookFormulaFr).toContain("{track_title}");
-  });
-
-  it("creates an isolated producer workspace with LIL SBD catalog & starter posts", async () => {
     const testUserId = `test-producer-${Date.now()}`;
     await db.insert(user).values({
       id: testUserId,
@@ -38,7 +24,7 @@ describe("Social Growth Studio — Multi-Producer Database & Seeding", () => {
       emailVerified: true,
     });
 
-    await ensureUserWorkspaceSeeded(testUserId, "LIL SBD");
+    await ensureArtistProfile(testUserId, "LIL SBD");
 
     const profiles = await db
       .select()
@@ -51,15 +37,25 @@ describe("Social Growth Studio — Multi-Producer Database & Seeding", () => {
       .select()
       .from(artistCatalogItems)
       .where(eq(artistCatalogItems.userId, testUserId));
-    expect(catalog.length).toBeGreaterThanOrEqual(12);
-    expect(catalog.some((c) => c.slug === "kino")).toBe(true);
-    expect(catalog.some((c) => c.type === "course_lesson")).toBe(true);
+    expect(catalog).toHaveLength(0);
 
     const posts = await db
       .select()
       .from(socialPosts)
       .where(eq(socialPosts.userId, testUserId));
-    expect(posts.length).toBeGreaterThanOrEqual(5);
+    expect(posts).toHaveLength(0);
+
+    const userTemplates = await db
+      .select()
+      .from(ideaTemplates)
+      .where(eq(ideaTemplates.userId, testUserId));
+    expect(userTemplates).toHaveLength(0);
+
+    const userPresets = await db
+      .select()
+      .from(hashtagPresets)
+      .where(eq(hashtagPresets.userId, testUserId));
+    expect(userPresets).toHaveLength(0);
 
     expect(CAMPAIGN_ROLLOUT_BLUEPRINTS.single_release.steps.length).toBe(8);
   });

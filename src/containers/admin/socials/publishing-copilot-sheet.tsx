@@ -1,8 +1,9 @@
 import {
-  IconBolt,
   IconBookmarkPlus,
   IconCheck,
   IconCopy,
+  IconDeviceMobile,
+  IconListCheck,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlus,
@@ -10,6 +11,7 @@ import {
   IconSparkles,
   IconTrash,
   IconWand,
+  IconX,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -19,7 +21,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
 } from "#/components/ui/sheet";
 import type {
@@ -38,6 +39,8 @@ import type {
 import { cn } from "#/lib/utils";
 import {
   createCustomIdeaTemplateServerFn,
+  createHashtagPresetServerFn,
+  deleteHashtagPresetServerFn,
   deleteSocialPostServerFn,
   upsertSocialPostServerFn,
 } from "#/server/socials";
@@ -52,6 +55,8 @@ interface PublishingCopilotSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   post: SocialPostRecord | null;
+  defaultStatus?: PostStatus;
+  defaultDate?: string;
   profile: ArtistProfileRecord;
   catalog: ArtistCatalogItemRecord[];
   campaigns: ReleaseCampaignRecord[];
@@ -81,6 +86,8 @@ export function PublishingCopilotSheet({
   open,
   onOpenChange,
   post,
+  defaultStatus = "idea",
+  defaultDate,
   profile,
   catalog,
   campaigns,
@@ -90,12 +97,11 @@ export function PublishingCopilotSheet({
   const [activeLang, setActiveLang] = useState<"en" | "fr">(
     profile.primaryLanguage === "fr" ? "fr" : "en",
   );
-  const [copilotSection, setCopilotSection] = useState<
-    "copy" | "shots" | "publish" | "metrics"
-  >("copy");
+  // Mobile view switcher (on lg+ desktop, both columns are visible simultaneously)
+  const [mobilePane, setMobilePane] = useState<"compose" | "publish" | "metrics">("compose");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form states
+  // Core post fields
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<PostStatus>("idea");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([
@@ -107,25 +113,21 @@ export function PublishingCopilotSheet({
   const [catalogItemId, setCatalogItemId] = useState<string>("");
   const [campaignId, setCampaignId] = useState<string>("");
   const [scheduledFor, setScheduledFor] = useState<string>(toDateInputString(new Date()));
-  const [audioTimestamp, setAudioTimestamp] = useState("0:42 - 0:58 (Main Drop)");
+  const [audioTimestamp, setAudioTimestamp] = useState("");
 
+  // Copy fields
   const [onScreenHookEn, setOnScreenHookEn] = useState("");
   const [onScreenHookFr, setOnScreenHookFr] = useState("");
   const [captionEn, setCaptionEn] = useState("");
   const [captionFr, setCaptionFr] = useState("");
-  const [ctaEn, setCtaEn] = useState(
-    `Stream on all platforms & check out the free HDM course — ${profile.defaultBioLink}`,
-  );
-  const [ctaFr, setCtaFr] = useState(
-    `Écoute sur toutes les plateformes & découvre le cours HDM gratuit — ${profile.defaultBioLink}`,
-  );
-  const [hashtags, setHashtags] = useState<string[]>([
-    "#uptempohardcore",
-    "#zaagkick",
-    "#harddance",
-    "#lilsbd",
-  ]);
+  const [ctaEn, setCtaEn] = useState("");
+  const [ctaFr, setCtaFr] = useState("");
+  const [hashtags, setHashtags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState("");
+  const [newPresetName, setNewPresetName] = useState("");
+  const [showSavePresetInput, setShowSavePresetInput] = useState(false);
+
+  // Shot list & checklist
   const [shotList, setShotList] = useState<ShotListItem[]>([]);
   const [newShotText, setNewShotText] = useState("");
   const [preFlightChecklist, setPreFlightChecklist] =
@@ -146,7 +148,15 @@ export function PublishingCopilotSheet({
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
 
   useEffect(() => {
-    if (post) {
+    if (!open) {
+      setIsPlayingPreview(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      return;
+    }
+
+    if (post && post.id) {
       setTitle(post.title);
       setStatus(post.status);
       setPlatforms(
@@ -158,7 +168,7 @@ export function PublishingCopilotSheet({
       setCatalogItemId(post.catalogItemId ?? "");
       setCampaignId(post.campaignId ?? "");
       setScheduledFor(toDateInputString(post.scheduledFor));
-      setAudioTimestamp(post.audioTimestamp ?? "0:42 - 0:58 (Main Drop)");
+      setAudioTimestamp(post.audioTimestamp ?? "");
       setOnScreenHookEn(post.onScreenHookEn ?? "");
       setOnScreenHookFr(post.onScreenHookFr ?? "");
       setCaptionEn(post.captionEn ?? "");
@@ -177,42 +187,30 @@ export function PublishingCopilotSheet({
       setPerformanceRating(post.performanceRating ?? "");
       setRetrospectiveNotes(post.retrospectiveNotes ?? "");
     } else {
-      const defaultTrack = catalog[0];
       setTitle("");
-      setStatus("idea");
+      setStatus(defaultStatus);
       setPlatforms(["instagram_reels", "tiktok", "youtube_shorts"]);
       setPillar("drop_showcase");
-      setCatalogItemId(defaultTrack?.id ?? "");
+      setCatalogItemId("");
       setCampaignId("");
-      setScheduledFor(toDateInputString(new Date()));
-      setAudioTimestamp("0:42 - 0:58 (Main Drop)");
-      setOnScreenHookEn(
-        defaultTrack
-          ? `Wait for the 2nd kick switch on ${defaultTrack.title} (${defaultTrack.bpm ?? 200} BPM)...`
-          : "",
-      );
-      setOnScreenHookFr(
-        defaultTrack
-          ? `Attends le 2ème switch de kick sur ${defaultTrack.title} (${defaultTrack.bpm ?? 200} BPM)...`
-          : "",
-      );
+      setScheduledFor(defaultDate ? toDateInputString(defaultDate) : toDateInputString(new Date()));
+      setAudioTimestamp("");
+      setOnScreenHookEn("");
+      setOnScreenHookFr("");
       setCaptionEn("");
       setCaptionFr("");
-      setCtaEn("Stream the full track & free HDM course — link in bio.");
-      setCtaFr("Écoute le son complet & le cours HDM gratuit — lien en bio.");
-      setHashtags(["#uptempohardcore", "#zaagkick", "#harddance", "#lilsbd"]);
-      setShotList([
-        {
-          id: "shot-1",
-          text: "0-3s: Start 2 bars before the drop with hook text centered",
-          completed: false,
-        },
-        {
-          id: "shot-2",
-          text: "3-12s: Cut to DAW mixer or studio reaction as the zaag kick lands",
-          completed: false,
-        },
-      ]);
+      setCtaEn(
+        profile.defaultBioLink
+          ? `Full track & free HDM course — ${profile.defaultBioLink}`
+          : "",
+      );
+      setCtaFr(
+        profile.defaultBioLink
+          ? `Son complet & cours HDM gratuit — ${profile.defaultBioLink}`
+          : "",
+      );
+      setHashtags([]);
+      setShotList([]);
       setPreFlightChecklist(DEFAULT_CHECKLIST);
       setPublishedUrl("");
       setViews(0);
@@ -223,31 +221,34 @@ export function PublishingCopilotSheet({
       setPerformanceRating("");
       setRetrospectiveNotes("");
     }
-    setIsPlayingPreview(false);
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-  }, [post, catalog, open]);
+    setMobilePane("compose");
+    setShowSavePresetInput(false);
+    setNewPresetName("");
+  }, [post, open, defaultStatus, defaultDate, profile.defaultBioLink]);
 
   const linkedCatalogItem = catalog.find((c) => c.id === catalogItemId) ?? null;
 
   const togglePlatform = (p: SocialPlatform) => {
     setPlatforms((prev) =>
-      prev.includes(p) ? (prev.length > 1 ? prev.filter((item) => item !== p) : prev) : [...prev, p],
+      prev.includes(p)
+        ? prev.length > 1
+          ? prev.filter((item) => item !== p)
+          : prev
+        : [...prev, p],
     );
   };
 
   const applyHookAngle = (
     angle: "curiosity" | "contrarian" | "tutorial" | "pov" | "showcase",
   ) => {
-    const trackName = linkedCatalogItem?.title ?? "this track";
+    const trackName = linkedCatalogItem?.title || title.trim() || "this track";
     const bpm = linkedCatalogItem?.bpm ?? 200;
 
     if (activeLang === "en") {
       const existingVariant = post?.hookVariantsEn?.[angle];
       if (existingVariant) {
         setOnScreenHookEn(existingVariant);
-        toast.success(`Applied ${angle} hook angle (EN)`);
+        toast.success(`Applied ${angle} hook (EN)`);
         return;
       }
       const generated: Record<typeof angle, string> = {
@@ -290,11 +291,46 @@ export function PublishingCopilotSheet({
   const addCustomTag = () => {
     const raw = customTagInput.trim();
     if (!raw) return;
-    const formatted = raw.startsWith("#") ? raw : `#${raw.replace(/\s+/g, "")}`;
-    if (!hashtags.includes(formatted)) {
-      setHashtags((prev) => [...prev, formatted]);
-    }
+    const parts = raw
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => (t.startsWith("#") ? t : `#${t}`));
+    setHashtags((prev) => Array.from(new Set([...prev, ...parts])));
     setCustomTagInput("");
+  };
+
+  const handleSaveHashtagPreset = async () => {
+    if (!newPresetName.trim() || hashtags.length === 0) {
+      toast.error("Enter a preset name and add at least 1 hashtag first.");
+      return;
+    }
+    try {
+      await createHashtagPresetServerFn({
+        data: {
+          name: newPresetName.trim(),
+          platform: "all",
+          tags: hashtags,
+        },
+      });
+      await onSaved();
+      setNewPresetName("");
+      setShowSavePresetInput(false);
+      toast.success("Saved hashtag preset!");
+    } catch {
+      toast.error("Failed to save hashtag preset");
+    }
+  };
+
+  const handleDeleteHashtagPreset = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteHashtagPresetServerFn({ data: { id } });
+      await onSaved();
+      toast.success("Removed hashtag preset");
+    } catch {
+      toast.error("Could not delete preset");
+    }
   };
 
   const addShotStep = () => {
@@ -308,6 +344,10 @@ export function PublishingCopilotSheet({
   };
 
   const copyText = async (text: string, label: string) => {
+    if (!text.trim()) {
+      toast.error(`Nothing in ${label} to copy yet`);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       toast.success(`Copied ${label} to clipboard!`);
@@ -332,32 +372,40 @@ export function PublishingCopilotSheet({
 
   const buildTikTokPackage = () => {
     const firstLine =
-      currentCaption.split("\n").find((l) => l.trim().length > 0) ?? currentHook;
+      currentCaption.split("\n").find((l) => l.trim().length > 0) || currentHook;
     const topTags = hashtags.slice(0, 5).join(" ");
-    return `${firstLine}\n\n${currentCta}\n${topTags}`.trim();
+    return [firstLine, currentCta, topTags].filter(Boolean).join("\n\n").trim();
   };
 
   const buildShortsPackage = () => {
-    const shortTitle = `${currentHook || title} #shorts #uptempo #harddance`.slice(0, 98);
-    return `TITLE:\n${shortTitle}\n\nDESCRIPTION:\n${currentCaption}\n\n${currentCta}\n\n${hashtags.join(" ")}`;
+    const baseTitle = currentHook || title || "New Post";
+    const shortTitle = `${baseTitle} #shorts`.slice(0, 98);
+    const descParts = [currentCaption, currentCta, hashtags.join(" ")].filter(Boolean);
+    return `TITLE:\n${shortTitle}\n\nDESCRIPTION:\n${descParts.join("\n\n")}`.trim();
   };
 
   const handleSave = async (overrideStatus?: PostStatus) => {
-    if (!title.trim() && !onScreenHookEn.trim()) {
-      toast.error("Please give this post a title or on-screen hook.");
+    if (!title.trim() && !onScreenHookEn.trim() && !onScreenHookFr.trim()) {
+      toast.error("Please enter a post title or an on-screen hook.");
       return;
     }
 
     setIsSaving(true);
     try {
       const finalStatus = overrideStatus ?? status;
+      const resolvedTitle =
+        title.trim() ||
+        onScreenHookEn.trim().slice(0, 60) ||
+        onScreenHookFr.trim().slice(0, 60) ||
+        "Untitled Post";
+
       await upsertSocialPostServerFn({
         data: {
-          id: post?.id,
+          id: post?.id || undefined,
           campaignId: campaignId || null,
           catalogItemId: catalogItemId || null,
           templateId: post?.templateId ?? null,
-          title: title.trim() || onScreenHookEn.slice(0, 50) || "Untitled Post",
+          title: resolvedTitle,
           status: finalStatus,
           platforms,
           pillar,
@@ -365,7 +413,7 @@ export function PublishingCopilotSheet({
           onScreenHookEn,
           onScreenHookFr: onScreenHookFr || onScreenHookEn,
           shotList,
-          audioTimestamp,
+          audioTimestamp: audioTimestamp.trim() || null,
           captionEn,
           captionFr: captionFr || captionEn,
           ctaEn,
@@ -385,10 +433,10 @@ export function PublishingCopilotSheet({
       await onSaved();
       toast.success(
         overrideStatus === "posted"
-          ? "Marked as Posted! Consistency streak updated."
-          : post
+          ? "Marked as Posted!"
+          : post?.id
             ? "Post updated!"
-            : "Added to your content pipeline!",
+            : "Post added to your pipeline!",
       );
       onOpenChange(false);
     } catch (err) {
@@ -399,28 +447,33 @@ export function PublishingCopilotSheet({
   };
 
   const handleSaveAsTemplate = async () => {
+    const resolvedTitle = title.trim() || onScreenHookEn.trim();
+    if (!resolvedTitle) {
+      toast.error("Add a title or hook before saving as a template.");
+      return;
+    }
     try {
       await createCustomIdeaTemplateServerFn({
         data: {
-          title: title.trim() || "Custom Producer Idea",
-          description: `Saved from post: ${title.trim() || onScreenHookEn}`,
+          title: resolvedTitle,
+          description: captionEn.slice(0, 120) || `Reusable template from ${resolvedTitle}`,
           category: "kick_sound_design",
           pillar,
           difficulty: "daw_capture",
           recommendedPlatforms: platforms,
-          hookFormulaEn: onScreenHookEn || title,
-          hookFormulaFr: onScreenHookFr || onScreenHookEn || title,
+          hookFormulaEn: onScreenHookEn || resolvedTitle,
+          hookFormulaFr: onScreenHookFr || onScreenHookEn || resolvedTitle,
           captionTemplateEn: captionEn,
           captionTemplateFr: captionFr || captionEn,
           defaultCtaEn: ctaEn,
           defaultCtaFr: ctaFr || ctaEn,
           defaultShotList: shotList.map((s) => s.text),
           suggestedHashtags: hashtags,
-          whyItWorks: retrospectiveNotes || "Custom reusable producer format.",
+          whyItWorks: retrospectiveNotes || "Custom producer template.",
         },
       });
       await onSaved();
-      toast.success("Saved to your personal Idea Vault!");
+      toast.success("Saved to your Idea Vault!");
     } catch {
       toast.error("Could not save template");
     }
@@ -432,7 +485,7 @@ export function PublishingCopilotSheet({
     try {
       await deleteSocialPostServerFn({ data: { id: post.id } });
       await onSaved();
-      toast.success("Post removed from pipeline");
+      toast.success("Post deleted");
       onOpenChange(false);
     } finally {
       setIsSaving(false);
@@ -445,7 +498,7 @@ export function PublishingCopilotSheet({
       audioRef.current.pause();
       setIsPlayingPreview(false);
     } else {
-      audioRef.current.currentTime = 40; // Jump right near the drop!
+      audioRef.current.currentTime = 40;
       audioRef.current.play().catch(() => {});
       setIsPlayingPreview(true);
     }
@@ -458,306 +511,368 @@ export function PublishingCopilotSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-2xl overflow-y-auto border-l border-border/80 bg-background/95 p-0 backdrop-blur-2xl"
+        showCloseButton={false}
+        className="flex h-dvh w-full max-w-none flex-col overflow-hidden border-l border-border/80 bg-background/98 p-0 backdrop-blur-2xl sm:w-[92vw] sm:max-w-3xl lg:w-[88vw] lg:max-w-5xl xl:max-w-6xl"
       >
-        <div className="sticky top-0 z-20 border-b border-border/70 bg-background/90 px-5 py-4 backdrop-blur-xl">
-          <SheetHeader className="p-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className="border-primary/40 bg-primary/15 text-primary-foreground text-[0.68rem] uppercase tracking-widest"
+        {/* Top Studio Header */}
+        <div className="shrink-0 border-b border-border/70 bg-card/60 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className="border-primary/40 bg-primary/15 text-primary-foreground text-[0.68rem] uppercase tracking-wider"
+              >
+                <IconSparkles className="mr-1 size-3" />
+                {post?.id ? "Edit Post" : "New Post"}
+              </Badge>
+
+              {/* Language Switcher */}
+              <div className="inline-flex border border-border/70 bg-background/80 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveLang("en")}
+                  className={cn(
+                    "px-2.5 py-0.5 font-semibold transition-colors",
+                    activeLang === "en"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <IconSparkles className="mr-1 size-3" />
-                  Publishing Copilot
-                </Badge>
-                <div className="inline-flex border border-border/70 bg-card/60 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setActiveLang("en")}
-                    className={cn(
-                      "px-2.5 py-1 font-medium transition-colors",
-                      activeLang === "en"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    EN
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveLang("fr")}
-                    className={cn(
-                      "px-2.5 py-1 font-medium transition-colors",
-                      activeLang === "fr"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    FR
-                  </button>
-                </div>
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLang("fr")}
+                  className={cn(
+                    "px-2.5 py-0.5 font-semibold transition-colors",
+                    activeLang === "fr"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  FR
+                </button>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleSaveAsTemplate}
-                  title="Save structure to Idea Vault"
-                >
-                  <IconBookmarkPlus className="size-4" />
-                  <span className="hidden sm:inline">Save Template</span>
-                </Button>
-                {post?.id ? (
-                  <Button
-                    size="icon-sm"
-                    variant="outline"
-                    className="text-destructive hover:bg-destructive/15"
-                    onClick={handleDelete}
-                    disabled={isSaving}
+              {/* Status Selector Pills on Desktop / Compact Select on Mobile */}
+              <div className="hidden items-center gap-1 md:flex">
+                {STATUS_COLUMNS.map((col) => (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setStatus(col.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all",
+                      status === col.id
+                        ? col.badgeClass
+                        : "border-border/60 bg-background/50 text-muted-foreground hover:text-foreground",
+                    )}
                   >
-                    <IconTrash className="size-4" />
-                  </Button>
-                ) : null}
+                    <span className={cn("size-1.5 rounded-full", col.dotClass)} />
+                    {col.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <SheetTitle className="mt-2">
+            <div className="flex items-center gap-1.5">
               <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Post working title (e.g., KINO — Zaag Kick EQ Breakdown)..."
-                className="w-full bg-transparent text-lg font-bold text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                type="date"
+                value={scheduledFor}
+                onChange={(e) => setScheduledFor(e.target.value)}
+                aria-label="Scheduled date"
+                className="border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-foreground"
               />
-            </SheetTitle>
-            <SheetDescription className="sr-only">
-              Configure hooks, captions, shot list, hashtags, and publishing checklist.
-            </SheetDescription>
-          </SheetHeader>
 
-          {/* Status & Schedule Bar */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSaveAsTemplate}
+                title="Save structure to Idea Vault"
+                className="hidden sm:inline-flex"
+              >
+                <IconBookmarkPlus className="size-3.5" />
+                <span>Save as Template</span>
+              </Button>
+
+              {post?.id ? (
+                <Button
+                  size="icon-sm"
+                  variant="outline"
+                  className="text-destructive hover:bg-destructive/15"
+                  onClick={handleDelete}
+                  disabled={isSaving}
+                  title="Delete post"
+                >
+                  <IconTrash className="size-4" />
+                </Button>
+              ) : null}
+
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                aria-label="Close Copilot"
+              >
+                <IconX className="size-4.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile Status Row */}
+          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 md:hidden">
             {STATUS_COLUMNS.map((col) => (
               <button
                 key={col.id}
                 type="button"
                 onClick={() => setStatus(col.id)}
                 className={cn(
-                  "flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all",
+                  "flex shrink-0 items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all",
                   status === col.id
                     ? col.badgeClass
-                    : "border-border/60 bg-card/30 text-muted-foreground hover:text-foreground",
+                    : "border-border/60 bg-background/50 text-muted-foreground",
                 )}
               >
                 <span className={cn("size-1.5 rounded-full", col.dotClass)} />
                 {col.label}
               </button>
             ))}
-
-            <input
-              type="date"
-              value={scheduledFor}
-              onChange={(e) => setScheduledFor(e.target.value)}
-              className="ml-auto border border-border/70 bg-card/60 px-2.5 py-1 text-xs text-foreground"
-            />
           </div>
 
-          {/* Sub-navigation tabs */}
-          <div className="mt-3 grid grid-cols-4 gap-1 border border-border/60 bg-card/40 p-1 text-xs">
+          {/* Working Title Input */}
+          <SheetTitle className="mt-2.5">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Post working title (e.g., Zaag Kick EQ Breakdown)..."
+              className="w-full border-b border-transparent bg-transparent pb-1 text-lg font-bold text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none sm:text-xl"
+            />
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Compose social post hooks, captions, shot list, and publishing checklist.
+          </SheetDescription>
+
+          {/* Mobile-Only Pane Switcher (Hidden on lg+ where 2-column studio layout is shown) */}
+          <div className="mt-3 grid grid-cols-3 gap-1 border border-border/70 bg-background/70 p-1 text-xs lg:hidden">
             <button
               type="button"
-              onClick={() => setCopilotSection("copy")}
+              onClick={() => setMobilePane("compose")}
               className={cn(
-                "py-1.5 font-medium transition-colors",
-                copilotSection === "copy"
+                "py-1.5 font-semibold transition-colors",
+                mobilePane === "compose"
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              1. Hook & Copy
+              1. Write & Shots
             </button>
             <button
               type="button"
-              onClick={() => setCopilotSection("shots")}
+              onClick={() => setMobilePane("publish")}
               className={cn(
-                "py-1.5 font-medium transition-colors",
-                copilotSection === "shots"
+                "py-1.5 font-semibold transition-colors",
+                mobilePane === "publish"
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              2. Shot List ({completedShots}/{shotList.length})
+              2. Copy & Check ({completedPreFlight}/4)
             </button>
             <button
               type="button"
-              onClick={() => setCopilotSection("publish")}
+              onClick={() => setMobilePane("metrics")}
               className={cn(
-                "py-1.5 font-medium transition-colors",
-                copilotSection === "publish"
+                "py-1.5 font-semibold transition-colors",
+                mobilePane === "metrics"
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              3. Publish ({completedPreFlight}/4)
-            </button>
-            <button
-              type="button"
-              onClick={() => setCopilotSection("metrics")}
-              className={cn(
-                "py-1.5 font-medium transition-colors",
-                copilotSection === "metrics"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              4. Results
+              3. Results
             </button>
           </div>
         </div>
 
-        <div className="space-y-6 p-5">
-          {/* Linked Track / Course Asset + Platforms Bar */}
-          <div className="grid gap-3 border border-border/60 bg-card/35 p-3.5 sm:grid-cols-2">
-            <div>
-              <label className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                Linked Track / Course Asset
-              </label>
-              <select
-                value={catalogItemId}
-                onChange={(e) => setCatalogItemId(e.target.value)}
-                className="mt-1 w-full border border-border/70 bg-background/80 px-2.5 py-1.5 text-sm text-foreground"
-              >
-                <option value="">No specific track linked</option>
-                {catalog.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    [{item.type === "course_lesson" ? "COURSE" : "TRACK"}] {item.title}{" "}
-                    {item.bpm ? `(${item.bpm} BPM)` : ""}
-                  </option>
-                ))}
-              </select>
-
-              {linkedCatalogItem ? (
-                <div className="mt-2 flex items-center justify-between gap-2 border border-primary/25 bg-primary/10 p-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {linkedCatalogItem.artworkUrl ? (
-                      <img
-                        src={linkedCatalogItem.artworkUrl}
-                        alt={linkedCatalogItem.title}
-                        className="size-9 shrink-0 object-cover border border-white/15"
-                      />
-                    ) : null}
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold">{linkedCatalogItem.title}</p>
-                      <p className="text-[0.68rem] text-muted-foreground">
-                        {linkedCatalogItem.bpm ?? 200} BPM • {audioTimestamp}
-                      </p>
-                    </div>
+        {/* Main Studio Body — 2-Column Workspace on Desktop (lg+), Clean Tabbed Panes on Mobile */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid min-h-full lg:grid-cols-12">
+            {/* LEFT COLUMN: Metadata + Copy Editor + Hashtags + Shot List */}
+            <div
+              className={cn(
+                "space-y-6 p-4 sm:p-6 lg:col-span-7 lg:border-r lg:border-border/60",
+                mobilePane !== "compose" && "hidden lg:block",
+              )}
+            >
+              {/* Post Context & Target Platforms */}
+              <div className="space-y-3.5 border border-border/60 bg-card/35 p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Linked Track / Asset
+                    </label>
+                    <select
+                      value={catalogItemId}
+                      onChange={(e) => setCatalogItemId(e.target.value)}
+                      className="mt-1 w-full border border-border/70 bg-background/85 px-2.5 py-1.5 text-xs text-foreground"
+                    >
+                      <option value="">Standalone (No track)</option>
+                      {catalog.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} {item.bpm ? `(${item.bpm} BPM)` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {linkedCatalogItem.audioPreviewUrl ? (
-                      <>
-                        <audio
-                          ref={audioRef}
-                          src={linkedCatalogItem.audioPreviewUrl}
-                          onEnded={() => setIsPlayingPreview(false)}
+
+                  <div>
+                    <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Content Pillar
+                    </label>
+                    <select
+                      value={pillar}
+                      onChange={(e) => setPillar(e.target.value as ContentPillar)}
+                      className="mt-1 w-full border border-border/70 bg-background/85 px-2.5 py-1.5 text-xs text-foreground"
+                    >
+                      {Object.entries(PILLAR_META).map(([key, meta]) => (
+                        <option key={key} value={key}>
+                          {meta.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Rollout Campaign
+                    </label>
+                    <select
+                      value={campaignId}
+                      onChange={(e) => setCampaignId(e.target.value)}
+                      className="mt-1 w-full border border-border/70 bg-background/85 px-2.5 py-1.5 text-xs text-foreground"
+                    >
+                      <option value="">No campaign</option>
+                      {campaigns.map((camp) => (
+                        <option key={camp.id} value={camp.id}>
+                          {camp.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {linkedCatalogItem ? (
+                  <div className="flex items-center justify-between gap-2 border border-primary/25 bg-primary/10 p-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {linkedCatalogItem.artworkUrl ? (
+                        <img
+                          src={linkedCatalogItem.artworkUrl}
+                          alt={linkedCatalogItem.title}
+                          className="size-9 shrink-0 object-cover border border-white/15"
                         />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold">{linkedCatalogItem.title}</p>
+                        <p className="text-[0.68rem] text-muted-foreground">
+                          {linkedCatalogItem.bpm ?? 200} BPM • {linkedCatalogItem.genreTag}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {linkedCatalogItem.audioPreviewUrl ? (
+                        <>
+                          <audio
+                            ref={audioRef}
+                            src={linkedCatalogItem.audioPreviewUrl}
+                            onEnded={() => setIsPlayingPreview(false)}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={toggleAudioPreview}
+                            title="Audition audio preview"
+                          >
+                            {isPlayingPreview ? (
+                              <IconPlayerPause className="size-3.5" />
+                            ) : (
+                              <IconPlayerPlay className="size-3.5" />
+                            )}
+                            <span>{isPlayingPreview ? "Pause" : "Preview"}</span>
+                          </Button>
+                        </>
+                      ) : null}
+                      {linkedCatalogItem.streamingLinks?.spotify ? (
                         <Button
                           size="icon-sm"
                           variant="outline"
-                          onClick={toggleAudioPreview}
-                          title="Audition drop snippet (starts at 0:40)"
+                          onClick={() =>
+                            copyText(
+                              linkedCatalogItem.streamingLinks.spotify!,
+                              "Spotify Link",
+                            )
+                          }
+                          title="Copy Spotify link"
                         >
-                          {isPlayingPreview ? (
-                            <IconPlayerPause className="size-3.5" />
-                          ) : (
-                            <IconPlayerPlay className="size-3.5" />
-                          )}
+                          <IconCopy className="size-3.5" />
                         </Button>
-                      </>
-                    ) : null}
-                    {linkedCatalogItem.streamingLinks?.spotify ? (
-                      <Button
-                        size="icon-sm"
-                        variant="outline"
-                        onClick={() =>
-                          copyText(
-                            linkedCatalogItem.streamingLinks.spotify!,
-                            "Spotify Track Link",
-                          )
-                        }
-                        title="Copy Spotify link"
-                      >
-                        <IconCopy className="size-3.5" />
-                      </Button>
-                    ) : null}
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="space-y-1">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Target Platforms
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(Object.keys(PLATFORM_META) as SocialPlatform[]).map((p) => {
+                        const meta = PLATFORM_META[p];
+                        const active = platforms.includes(p);
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => togglePlatform(p)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all",
+                              active
+                                ? meta.badgeClass
+                                : "border-border/50 bg-background/40 text-muted-foreground opacity-60 hover:opacity-100",
+                            )}
+                          >
+                            <meta.Icon className="size-3.5" />
+                            {meta.shortLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Audio Timestamp / Section
+                    </label>
+                    <input
+                      type="text"
+                      value={audioTimestamp}
+                      onChange={(e) => setAudioTimestamp(e.target.value)}
+                      placeholder="e.g., 0:42 - 0:58 (1st Drop)"
+                      className="border border-border/70 bg-background/85 px-2.5 py-1 text-xs text-foreground"
+                    />
                   </div>
                 </div>
-              ) : null}
-            </div>
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Content Pillar
-                </label>
-                <select
-                  value={pillar}
-                  onChange={(e) => setPillar(e.target.value as ContentPillar)}
-                  className="mt-1 w-full border border-border/70 bg-background/80 px-2.5 py-1.5 text-sm text-foreground"
-                >
-                  {Object.entries(PILLAR_META).map(([key, meta]) => (
-                    <option key={key} value={key}>
-                      {meta.label}
-                    </option>
-                  ))}
-                </select>
               </div>
 
-              <div>
-                <label className="text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Target Platforms
-                </label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {(Object.keys(PLATFORM_META) as SocialPlatform[]).map((p) => {
-                    const meta = PLATFORM_META[p];
-                    const active = platforms.includes(p);
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => togglePlatform(p)}
-                        className={cn(
-                          "inline-flex items-center gap-1 border px-2 py-1 text-[0.7rem] font-medium transition-all",
-                          active
-                            ? meta.badgeClass
-                            : "border-border/50 bg-background/40 text-muted-foreground opacity-60 hover:opacity-100",
-                        )}
-                      >
-                        <meta.Icon className="size-3.5" />
-                        {meta.shortLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 1: HOOK & COPY STUDIO */}
-          {copilotSection === "copy" ? (
-            <div className="space-y-5">
-              {/* On-Screen Video Hook */}
-              <div className="space-y-2 border border-primary/30 bg-primary/8 p-4">
+              {/* 1. On-Screen Video Hook */}
+              <div className="space-y-2.5 border border-primary/30 bg-primary/6 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-primary-foreground">
+                    <label className="text-xs font-bold uppercase tracking-wider text-foreground">
                       On-Screen Video Text Hook ({activeLang.toUpperCase()})
                     </label>
-                    <p className="text-[0.72rem] text-muted-foreground">
-                      Appears in the first 2.5 seconds of your Reel / TikTok / Short. Keep it under
-                      75 chars.
+                    <p className="text-[0.7rem] text-muted-foreground">
+                      Text overlay for the first 2.5 seconds of your video.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -767,12 +882,10 @@ export function PublishingCopilotSheet({
                         "text-[0.68rem]",
                         currentHook.length > 80
                           ? "border-amber-500/40 text-amber-300"
-                          : "border-emerald-500/40 text-emerald-300",
+                          : "border-border/70 text-muted-foreground",
                       )}
                     >
-                      {currentHook.length} chars • ~
-                      {Math.max(1, Math.round(currentHook.split(/\s+/).filter(Boolean).length / 3.5))}
-                      s read
+                      {currentHook.length} chars
                     </Badge>
                     <Button
                       size="sm"
@@ -793,21 +906,20 @@ export function PublishingCopilotSheet({
                       ? setOnScreenHookEn(e.target.value)
                       : setOnScreenHookFr(e.target.value)
                   }
-                  placeholder="e.g., Why 90% of zaag kicks sound like muddy noise (and how I fixed mine on KINO)"
-                  className="w-full border border-border/80 bg-background/90 p-3 text-base font-semibold text-foreground focus:border-primary focus:outline-none"
+                  placeholder="Write your opening hook overlay..."
+                  className="w-full border border-border/80 bg-background/90 p-3 text-sm font-semibold text-foreground focus:border-primary focus:outline-none sm:text-base"
                 />
 
-                {/* 5 Hook Angle Switchers */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="mr-1 inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 inline-flex items-center gap-1 text-[0.68rem] text-muted-foreground">
                     <IconWand className="size-3.5 text-primary" />
-                    Generate Angle:
+                    Quick Angle:
                   </span>
                   {(
                     [
                       ["curiosity", "Curiosity Loop"],
                       ["contrarian", "Hot Take"],
-                      ["tutorial", "DAW Value"],
+                      ["tutorial", "DAW Breakdown"],
                       ["pov", "Festival / Gym POV"],
                       ["showcase", "Direct Showcase"],
                     ] as const
@@ -816,7 +928,7 @@ export function PublishingCopilotSheet({
                       key={angle}
                       type="button"
                       onClick={() => applyHookAngle(angle)}
-                      className="border border-border/70 bg-background/70 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
+                      className="border border-border/70 bg-background/70 px-2 py-0.5 text-[0.68rem] font-medium text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
                     >
                       {label}
                     </button>
@@ -824,112 +936,154 @@ export function PublishingCopilotSheet({
                 </div>
               </div>
 
-              {/* Caption Body */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Post Caption Body ({activeLang.toUpperCase()})
-                  </label>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => copyText(currentCaption, "Caption Body")}
-                  >
-                    <IconCopy className="size-3.5" />
-                    Copy Body
-                  </Button>
+              {/* 2. Caption & Call-To-Action */}
+              <div className="space-y-4 border border-border/60 bg-card/30 p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Post Caption Body ({activeLang.toUpperCase()})
+                    </label>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyText(currentCaption, "Caption Body")}
+                    >
+                      <IconCopy className="size-3.5" />
+                      Copy Body
+                    </Button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={activeLang === "en" ? captionEn : captionFr}
+                    onChange={(e) =>
+                      activeLang === "en"
+                        ? setCaptionEn(e.target.value)
+                        : setCaptionFr(e.target.value)
+                    }
+                    placeholder="Write direct context about the track, sound design, or drop..."
+                    className="w-full border border-border/70 bg-background/80 p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
-                <textarea
-                  rows={5}
-                  value={activeLang === "en" ? captionEn : captionFr}
-                  onChange={(e) =>
-                    activeLang === "en"
-                      ? setCaptionEn(e.target.value)
-                      : setCaptionFr(e.target.value)
-                  }
-                  placeholder="Write direct, non-corny context about the kick design, drop contrast, or production lesson..."
-                  className="w-full border border-border/70 bg-card/40 p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none"
-                />
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Call-To-Action Line ({activeLang.toUpperCase()})
+                  </label>
+                  <input
+                    type="text"
+                    value={activeLang === "en" ? ctaEn : ctaFr}
+                    onChange={(e) =>
+                      activeLang === "en" ? setCtaEn(e.target.value) : setCtaFr(e.target.value)
+                    }
+                    placeholder="e.g., Stream on all platforms — link in bio."
+                    className="w-full border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
               </div>
 
-              {/* Call to Action (CTA) */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Call-To-Action Line ({activeLang.toUpperCase()})
-                </label>
-                <input
-                  type="text"
-                  value={activeLang === "en" ? ctaEn : ctaFr}
-                  onChange={(e) =>
-                    activeLang === "en" ? setCtaEn(e.target.value) : setCtaFr(e.target.value)
-                  }
-                  className="w-full border border-border/70 bg-card/40 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              {/* Hashtag Pack Selector */}
+              {/* 3. Hashtags & Saved Packs */}
               <div className="space-y-3 border border-border/60 bg-card/30 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Smart Hashtag Set ({hashtags.length} active)
+                      Hashtags ({hashtags.length})
                     </label>
-                    <p className="text-[0.7rem] text-muted-foreground">
-                      3–6 targeted niche tags outperform 30 spam tags on Reels & TikTok.
-                    </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyText(hashtags.join(" "), "Hashtags")}
-                  >
-                    <IconCopy className="size-3.5" />
-                    Copy Tags
-                  </Button>
-                </div>
-
-                {/* Preset Pack Pills */}
-                <div className="flex flex-wrap gap-1.5">
-                  {hashtagPresets.map((preset) => {
-                    const active = preset.tags.every((t) => hashtags.includes(t));
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => togglePresetTags(preset.tags)}
-                        className={cn(
-                          "border px-2.5 py-1 text-xs font-medium transition-colors",
-                          active
-                            ? "border-primary bg-primary/20 text-primary-foreground"
-                            : "border-border/70 bg-background/60 text-muted-foreground hover:text-foreground",
-                        )}
+                  <div className="flex items-center gap-1.5">
+                    {hashtags.length > 0 ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowSavePresetInput((v) => !v)}
                       >
-                        + {preset.name}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Active tag chips */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {hashtags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 border border-primary/35 bg-primary/12 px-2 py-0.5 text-xs text-primary-foreground"
+                        <IconPlus className="size-3.5" />
+                        Save as Pack
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyText(hashtags.join(" "), "Hashtags")}
                     >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setHashtags((prev) => prev.filter((item) => item !== tag))
-                        }
-                        className="ml-0.5 text-muted-foreground hover:text-foreground"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                      <IconCopy className="size-3.5" />
+                      Copy Tags
+                    </Button>
+                  </div>
                 </div>
+
+                {showSavePresetInput ? (
+                  <div className="flex gap-2 border border-primary/30 bg-primary/10 p-2.5">
+                    <input
+                      type="text"
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      placeholder="Preset pack name (e.g., Uptempo Core)..."
+                      className="flex-1 border border-border/70 bg-background/90 px-2.5 py-1 text-xs"
+                    />
+                    <Button size="sm" onClick={handleSaveHashtagPreset}>
+                      Save Pack
+                    </Button>
+                  </div>
+                ) : null}
+
+                {hashtagPresets.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {hashtagPresets.map((preset) => {
+                      const active =
+                        preset.tags.length > 0 &&
+                        preset.tags.every((t) => hashtags.includes(t));
+                      return (
+                        <div
+                          key={preset.id}
+                          className={cn(
+                            "inline-flex items-center border text-xs font-medium transition-colors",
+                            active
+                              ? "border-primary bg-primary/20 text-primary-foreground"
+                              : "border-border/70 bg-background/60 text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => togglePresetTags(preset.tags)}
+                            className="px-2.5 py-1"
+                          >
+                            + {preset.name}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteHashtagPreset(preset.id, e)}
+                            className="border-l border-border/50 px-1.5 py-1 text-muted-foreground hover:text-destructive"
+                            title="Delete preset pack"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {hashtags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {hashtags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 border border-primary/35 bg-primary/12 px-2 py-0.5 text-xs text-primary-foreground"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setHashtags((prev) => prev.filter((item) => item !== tag))
+                          }
+                          className="ml-0.5 text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="flex gap-2">
                   <input
@@ -942,92 +1096,82 @@ export function PublishingCopilotSheet({
                         addCustomTag();
                       }
                     }}
-                    placeholder="Add tag (e.g. #rawstyle)..."
-                    className="flex-1 border border-border/70 bg-background/70 px-2.5 py-1.5 text-xs"
+                    placeholder="Add hashtags (e.g. #uptempo #zaagkick)..."
+                    className="flex-1 border border-border/70 bg-background/80 px-2.5 py-1.5 text-xs"
                   />
                   <Button size="sm" variant="outline" onClick={addCustomTag}>
                     Add
                   </Button>
                 </div>
               </div>
-            </div>
-          ) : null}
 
-          {/* SECTION 2: SHOT LIST & DAW RECORDING CUES */}
-          {copilotSection === "shots" ? (
-            <div className="space-y-4">
-              <div className="border border-border/60 bg-card/35 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* 4. Filming & DAW Shot List */}
+              <div className="space-y-3 border border-border/60 bg-card/30 p-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-sm font-semibold">
-                      Filming & DAW Screen-Recording Shot List
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Filming & DAW Capture Shot List ({completedShots}/{shotList.length})
                     </h4>
-                    <p className="text-xs text-muted-foreground">
-                      Step-by-step capture plan so you can batch-record in 10 minutes.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Target Audio Cue:</span>
-                    <input
-                      type="text"
-                      value={audioTimestamp}
-                      onChange={(e) => setAudioTimestamp(e.target.value)}
-                      className="border border-border/70 bg-background/80 px-2.5 py-1 text-xs font-medium"
-                    />
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2">
-                  {shotList.map((shot, index) => (
-                    <div
-                      key={shot.id}
-                      className={cn(
-                        "flex items-start gap-3 border p-3 transition-colors",
-                        shot.completed
-                          ? "border-emerald-500/35 bg-emerald-500/10"
-                          : "border-border/60 bg-background/60",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={shot.completed}
-                        onChange={() =>
-                          setShotList((prev) =>
-                            prev.map((item) =>
-                              item.id === shot.id
-                                ? { ...item, completed: !item.completed }
-                                : item,
-                            ),
-                          )
-                        }
-                        className="mt-1 size-4 accent-primary"
-                      />
-                      <div className="flex-1 text-sm">
-                        <span className="mr-2 font-mono text-xs text-primary">
-                          #{index + 1}
-                        </span>
-                        <span
-                          className={cn(
-                            shot.completed && "line-through text-muted-foreground",
-                          )}
-                        >
-                          {shot.text}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShotList((prev) => prev.filter((item) => item.id !== shot.id))
-                        }
-                        className="text-xs text-muted-foreground hover:text-destructive"
+                {shotList.length > 0 ? (
+                  <div className="space-y-2">
+                    {shotList.map((shot, index) => (
+                      <div
+                        key={shot.id}
+                        className={cn(
+                          "flex items-start gap-2.5 border p-2.5 text-xs transition-colors",
+                          shot.completed
+                            ? "border-emerald-500/35 bg-emerald-500/10"
+                            : "border-border/60 bg-background/60",
+                        )}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                        <input
+                          type="checkbox"
+                          checked={shot.completed}
+                          onChange={() =>
+                            setShotList((prev) =>
+                              prev.map((item) =>
+                                item.id === shot.id
+                                  ? { ...item, completed: !item.completed }
+                                  : item,
+                              ),
+                            )
+                          }
+                          className="mt-0.5 size-4 accent-primary"
+                        />
+                        <div className="flex-1">
+                          <span className="mr-1.5 font-mono text-[0.68rem] text-primary">
+                            #{index + 1}
+                          </span>
+                          <span
+                            className={cn(
+                              shot.completed && "line-through text-muted-foreground",
+                            )}
+                          >
+                            {shot.text}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShotList((prev) => prev.filter((item) => item.id !== shot.id))
+                          }
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No shot list steps added yet. Add capture steps below if needed.
+                  </p>
+                )}
 
-                <div className="mt-3 flex gap-2">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={newShotText}
@@ -1038,271 +1182,302 @@ export function PublishingCopilotSheet({
                         addShotStep();
                       }
                     }}
-                    placeholder="Add filming cue (e.g., 'Zoom on Pro-Q3 notch at 320Hz')..."
-                    className="flex-1 border border-border/70 bg-background/80 px-3 py-2 text-sm"
+                    placeholder="Add filming step (e.g., Solo kick chain then drop into full mix)..."
+                    className="flex-1 border border-border/70 bg-background/80 px-2.5 py-1.5 text-xs"
                   />
-                  <Button variant="outline" onClick={addShotStep}>
-                    <IconPlus className="size-4" />
-                    Add Shot
+                  <Button size="sm" variant="outline" onClick={addShotStep}>
+                    <IconPlus className="size-3.5" />
+                    Add Step
                   </Button>
                 </div>
               </div>
             </div>
-          ) : null}
 
-          {/* SECTION 3: MOBILE POCKET PUBLISHER & PRE-FLIGHT CHECKLIST */}
-          {copilotSection === "publish" ? (
-            <div className="space-y-5">
-              {/* 1-Tap Copy Cards for Phone Publishing */}
-              <div className="space-y-3 border border-primary/35 bg-primary/10 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold">
-                      1-Tap Mobile Publishing Packs ({activeLang.toUpperCase()})
-                    </h4>
-                    <p className="text-xs text-muted-foreground">
-                      Open this drawer on your phone, tap Copy, and paste straight into the app.
-                    </p>
+            {/* RIGHT COLUMN: Live Package Preview + 1-Tap Copy + Checklist + Metrics */}
+            <div
+              className={cn(
+                "space-y-6 bg-card/20 p-4 sm:p-6 lg:col-span-5",
+                mobilePane === "compose" && "hidden lg:block",
+              )}
+            >
+              {/* Publish & Pre-Flight Section (Visible on lg+ OR when mobilePane === "publish") */}
+              <div
+                className={cn(
+                  "space-y-5",
+                  mobilePane === "metrics" && "hidden lg:block",
+                )}
+              >
+                {/* Live Assembled Caption Preview */}
+                <div className="space-y-2.5 border border-border/70 bg-background/80 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary-foreground">
+                      <IconDeviceMobile className="size-3.5 text-primary" />
+                      Live Post Package Preview ({activeLang.toUpperCase()})
+                    </span>
+                    <Badge variant="outline" className="text-[0.65rem]">
+                      {buildFullIgPackage().length} chars
+                    </Badge>
                   </div>
+                  <pre className="max-h-44 overflow-y-auto whitespace-pre-wrap border border-border/50 bg-card/50 p-3 font-sans text-xs leading-relaxed text-foreground/90">
+                    {buildFullIgPackage() || "As you type your hook, caption, CTA, and hashtags, your ready-to-paste package previews here..."}
+                  </pre>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    variant="default"
-                    className="justify-start gap-2 h-auto py-3"
-                    onClick={() => copyText(currentHook, "On-Screen Text Overlay")}
-                  >
-                    <IconCopy className="size-4 shrink-0" />
-                    <div className="text-left">
-                      <div className="text-xs font-bold">1. Copy Video Overlay Hook</div>
-                      <div className="text-[0.68rem] opacity-80">
-                        Paste into IG / TikTok / CapCut text box
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="justify-start gap-2 h-auto py-3 border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20"
-                    onClick={() => copyText(buildFullIgPackage(), "Full Instagram Caption")}
-                  >
-                    <IconCopy className="size-4 shrink-0 text-pink-300" />
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-pink-200">
-                        2. Copy Instagram Reel / Carousel
-                      </div>
-                      <div className="text-[0.68rem] text-pink-300/80">
-                        Hook + Caption + CTA + Spacer + Tags
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="justify-start gap-2 h-auto py-3 border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20"
-                    onClick={() => copyText(buildTikTokPackage(), "TikTok Caption")}
-                  >
-                    <IconCopy className="size-4 shrink-0 text-cyan-300" />
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-cyan-200">
-                        3. Copy TikTok Punchy Caption
-                      </div>
-                      <div className="text-[0.68rem] text-cyan-300/80">
-                        Short hook + CTA + top 5 niche tags
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="justify-start gap-2 h-auto py-3 border-red-500/40 bg-red-500/10 hover:bg-red-500/20"
-                    onClick={() => copyText(buildShortsPackage(), "YouTube Shorts Package")}
-                  >
-                    <IconCopy className="size-4 shrink-0 text-red-300" />
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-red-200">
-                        4. Copy YT Shorts Title & Desc
-                      </div>
-                      <div className="text-[0.68rem] text-red-300/80">
-                        Under 100-char title + #shorts description
-                      </div>
-                    </div>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Pre-Flight Quality Checklist */}
-              <div className="space-y-3 border border-border/60 bg-card/35 p-4">
-                <h4 className="text-sm font-semibold">Pre-Flight Quality Checklist</h4>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(
-                    [
-                      [
-                        "highResExport",
-                        "1080x1920 60fps Export (WAV/320kbps AAC audio)",
-                      ],
-                      [
-                        "coverFrameSelected",
-                        "Clean Cover Frame + Title inside 4:5 grid safe zone",
-                      ],
-                      [
-                        "audioSynced",
-                        "Visual cut lands on the exact transient of the zaag drop",
-                      ],
-                      [
-                        "linkInBioUpdated",
-                        "Link in bio points to latest track & Free HDM Course",
-                      ],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label
-                      key={key}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-2.5 border p-3 text-xs transition-colors",
-                        preFlightChecklist[key]
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-                          : "border-border/60 bg-background/50 text-muted-foreground",
-                      )}
+                {/* 1-Tap Copy Packs */}
+                <div className="space-y-2.5 border border-primary/30 bg-primary/8 p-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    1-Tap Copy for Publishing ({activeLang.toUpperCase()})
+                  </h4>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <Button
+                      variant="default"
+                      className="h-auto justify-start gap-2.5 py-2.5 text-left"
+                      onClick={() => copyText(currentHook, "Video Overlay Hook")}
                     >
-                      <input
-                        type="checkbox"
-                        checked={preFlightChecklist[key]}
-                        onChange={() =>
-                          setPreFlightChecklist((prev) => ({
-                            ...prev,
-                            [key]: !prev[key],
-                          }))
-                        }
-                        className="size-4 accent-primary"
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                      <IconCopy className="size-4 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold">Copy Video Hook</div>
+                        <div className="truncate text-[0.65rem] opacity-80">
+                          On-screen text overlay
+                        </div>
+                      </div>
+                    </Button>
 
-              {/* One-Click Mark as Posted */}
-              <div className="flex items-center justify-between border border-emerald-500/40 bg-emerald-500/10 p-4">
-                <div>
-                  <p className="text-sm font-bold text-emerald-200">
-                    Ready to push live on socials?
-                  </p>
-                  <p className="text-xs text-emerald-300/80">
-                    Marking as Posted logs today's timestamp and counts toward your weekly streak.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => handleSave("posted")}
-                  disabled={isSaving}
-                  className="bg-emerald-600 text-white hover:bg-emerald-500"
-                >
-                  <IconRocket className="size-4" />
-                  Mark as Posted
-                </Button>
-              </div>
-            </div>
-          ) : null}
+                    <Button
+                      variant="outline"
+                      className="h-auto justify-start gap-2.5 border-pink-500/40 bg-pink-500/10 py-2.5 text-left hover:bg-pink-500/20"
+                      onClick={() => copyText(buildFullIgPackage(), "Instagram Package")}
+                    >
+                      <IconCopy className="size-4 shrink-0 text-pink-300" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold text-pink-200">
+                          Copy IG Reel / Carousel
+                        </div>
+                        <div className="truncate text-[0.65rem] text-pink-300/80">
+                          Hook + Caption + CTA + Tags
+                        </div>
+                      </div>
+                    </Button>
 
-          {/* SECTION 4: POST PERFORMANCE & RETROSPECTIVE LOG */}
-          {copilotSection === "metrics" ? (
-            <div className="space-y-4 border border-border/60 bg-card/35 p-4">
-              <div>
-                <h4 className="text-sm font-semibold">
-                  Performance & Algorithm Feedback Loop
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Log numbers 48h after posting so the Overview tab can rank which hooks & pillars
-                  convert best for {profile.stageName}.
-                </p>
-              </div>
+                    <Button
+                      variant="outline"
+                      className="h-auto justify-start gap-2.5 border-cyan-500/40 bg-cyan-500/10 py-2.5 text-left hover:bg-cyan-500/20"
+                      onClick={() => copyText(buildTikTokPackage(), "TikTok Package")}
+                    >
+                      <IconCopy className="size-4 shrink-0 text-cyan-300" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold text-cyan-200">
+                          Copy TikTok Caption
+                        </div>
+                        <div className="truncate text-[0.65rem] text-cyan-300/80">
+                          Short hook + CTA + top 5 tags
+                        </div>
+                      </div>
+                    </Button>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                {(
-                  [
-                    ["Views", views, setViews],
-                    ["Likes", likes, setLikes],
-                    ["Saves", saves, setSaves],
-                    ["Shares", shares, setShares],
-                    ["Comments", comments, setComments],
-                  ] as const
-                ).map(([label, val, setter]) => (
-                  <div key={label} className="border border-border/60 bg-background/60 p-2.5">
-                    <label className="text-[0.68rem] uppercase tracking-wider text-muted-foreground">
-                      {label}
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={val}
-                      onChange={(e) => setter(Number(e.target.value) || 0)}
-                      className="mt-1 w-full bg-transparent text-base font-bold text-foreground focus:outline-none"
-                    />
+                    <Button
+                      variant="outline"
+                      className="h-auto justify-start gap-2.5 border-red-500/40 bg-red-500/10 py-2.5 text-left hover:bg-red-500/20"
+                      onClick={() => copyText(buildShortsPackage(), "YouTube Shorts Package")}
+                    >
+                      <IconCopy className="size-4 shrink-0 text-red-300" />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold text-red-200">
+                          Copy YT Shorts Pack
+                        </div>
+                        <div className="truncate text-[0.65rem] text-red-300/80">
+                          Title + #shorts description
+                        </div>
+                      </div>
+                    </Button>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Quick Outcome Rating
-                </label>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {(Object.keys(PERFORMANCE_RATING_META) as PerformanceRating[]).map((r) => {
-                    const meta = PERFORMANCE_RATING_META[r];
-                    return (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() =>
-                          setPerformanceRating((prev) => (prev === r ? "" : r))
-                        }
+                {/* Pre-Flight Checklist */}
+                <div className="space-y-2.5 border border-border/60 bg-card/35 p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <IconListCheck className="size-4 text-primary" />
+                      Pre-Flight Quality Checklist ({completedPreFlight}/4)
+                    </h4>
+                  </div>
+                  <div className="grid gap-2">
+                    {(
+                      [
+                        [
+                          "highResExport",
+                          "1080x1920 60fps Export (High-bitrate audio)",
+                        ],
+                        [
+                          "coverFrameSelected",
+                          "Cover frame & hook text inside 4:5 safe zone",
+                        ],
+                        [
+                          "audioSynced",
+                          "Visual cut lands on the exact drop transient",
+                        ],
+                        [
+                          "linkInBioUpdated",
+                          "Bio link points to latest release / course",
+                        ],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label
+                        key={key}
                         className={cn(
-                          "border px-3 py-1.5 text-xs font-medium transition-all",
-                          performanceRating === r
-                            ? meta.badgeClass
+                          "flex cursor-pointer items-center gap-2.5 border px-3 py-2 text-xs transition-colors",
+                          preFlightChecklist[key]
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
                             : "border-border/60 bg-background/50 text-muted-foreground",
                         )}
                       >
-                        {meta.label}
-                      </button>
-                    );
-                  })}
+                        <input
+                          type="checkbox"
+                          checked={preFlightChecklist[key]}
+                          onChange={() =>
+                            setPreFlightChecklist((prev) => ({
+                              ...prev,
+                              [key]: !prev[key],
+                            }))
+                          }
+                          className="size-4 accent-primary"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  What Worked / Retrospective Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={retrospectiveNotes}
-                  onChange={(e) => setRetrospectiveNotes(e.target.value)}
-                  placeholder="e.g., High save rate (3.5%) because of the EQ screenshot in second 3. Repeat this format for LOCK THE DOORS."
-                  className="mt-1 w-full border border-border/70 bg-background/70 p-2.5 text-sm"
-                />
+              {/* Performance & Retrospective Log (Visible on lg+ OR when mobilePane === "metrics") */}
+              <div
+                className={cn(
+                  "space-y-4 border border-border/60 bg-card/35 p-4",
+                  mobilePane === "publish" && "hidden lg:block",
+                )}
+              >
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Post-Publish Performance & Notes
+                  </h4>
+                  <p className="text-[0.7rem] text-muted-foreground">
+                    Log results after publishing to track which hooks and pillars convert best.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5">
+                  {(
+                    [
+                      ["Views", views, setViews],
+                      ["Likes", likes, setLikes],
+                      ["Saves", saves, setSaves],
+                      ["Shares", shares, setShares],
+                      ["Comments", comments, setComments],
+                    ] as const
+                  ).map(([label, val, setter]) => (
+                    <div key={label} className="border border-border/60 bg-background/60 p-2">
+                      <label className="block text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                        {label}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={val}
+                        onChange={(e) => setter(Number(e.target.value) || 0)}
+                        className="mt-0.5 w-full bg-transparent text-sm font-bold text-foreground focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Published Post URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={publishedUrl}
+                    onChange={(e) => setPublishedUrl(e.target.value)}
+                    placeholder="https://www.instagram.com/reel/..."
+                    className="mt-1 w-full border border-border/70 bg-background/70 px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Outcome Rating
+                  </label>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {(Object.keys(PERFORMANCE_RATING_META) as PerformanceRating[]).map((r) => {
+                      const meta = PERFORMANCE_RATING_META[r];
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() =>
+                            setPerformanceRating((prev) => (prev === r ? "" : r))
+                          }
+                          className={cn(
+                            "border px-2.5 py-1 text-xs font-medium transition-all",
+                            performanceRating === r
+                              ? meta.badgeClass
+                              : "border-border/60 bg-background/50 text-muted-foreground",
+                          )}
+                        >
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Retrospective Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={retrospectiveNotes}
+                    onChange={(e) => setRetrospectiveNotes(e.target.value)}
+                    placeholder="What worked or what to adjust next time..."
+                    className="mt-1 w-full border border-border/70 bg-background/70 p-2.5 text-xs"
+                  />
+                </div>
               </div>
             </div>
-          ) : null}
+          </div>
         </div>
 
-        {/* Sticky Footer Save Bar */}
-        <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 border-t border-border/80 bg-background/95 px-5 py-3.5 backdrop-blur-xl">
-          <div className="text-xs text-muted-foreground">
-            {linkedCatalogItem ? (
-              <span>
-                Linked: <strong className="text-foreground">{linkedCatalogItem.title}</strong>
-              </span>
+        {/* Sticky Footer Action Bar */}
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-border/80 bg-card/80 px-4 py-3 backdrop-blur-xl sm:px-6">
+          <div className="flex items-center gap-2">
+            {status !== "posted" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleSave("posted")}
+                disabled={isSaving}
+                className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+              >
+                <IconRocket className="size-3.5" />
+                <span>Mark as Posted</span>
+              </Button>
             ) : (
-              <span>Standalone Artist Post</span>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                <IconCheck className="mr-1 size-3" />
+                Published
+              </Badge>
             )}
           </div>
+
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={() => handleSave()} disabled={isSaving}>
+            <Button size="sm" onClick={() => handleSave()} disabled={isSaving}>
               <IconCheck className="size-4" />
-              {isSaving ? "Saving..." : post ? "Save Changes" : "Create Post"}
+              {isSaving ? "Saving..." : post?.id ? "Save Changes" : "Create Post"}
             </Button>
           </div>
         </div>
