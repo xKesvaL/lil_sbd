@@ -10,7 +10,7 @@
   "homee_badge_genre": "Uptempo Hardcore",
   "homee_badge_location": "Eastern France",
   "homee_badge_mission": "Zaag-driven, still musical",
-  "homee_contact_description": "For bookings, collabs, or general questions, email is the cleanest point of contact. The socials are here if you just want to keep up with the project.",
+  "homee_contact_description": "For bookings, collabs, or general questions, drop a DM on Instagram or send an email.",
   "homee_contact_email_cta": "Email Lil SBD",
   "homee_contact_title": "Bookings, socials, and direct contact",
   "homee_course_body": "The course is free and aimed first at hard music producers, but the workflow translates well to anyone making EDM. It covers kicks, sound design, mixing, samples, and the decisions that make a track actually hit instead of just clipping harder.",
@@ -165,14 +165,15 @@
     "about": "About",
     "contact": "Contact",
     "course": "Course",
-    "music": "Music"
+    "music": "Music",
+    "download": "Free downloads"
   },
   "header_tagline": "Uptempo hardcore from eastern France.",
   "homee_menu_open_label": "Open navigation",
   "homee_meta_description": "Lil SBD is an uptempo hardcore artist from eastern France, sharing heavy music and featured releases.",
   "homee_meta_title": "Lil SBD | Uptempo Hardcore",
   "homee_music_badge": "Music",
-  "homee_music_description": "If you are new to the project, start here. These cards are meant to point people toward the newest material, the heavier edge, and the more musical side of the sound.",
+  "homee_music_description": "If you never heard of me before, here's where to start:",
   "homee_music_title": "Where to start listening",
   "homee_nav_about": "About",
   "homee_nav_contact": "Contact",
@@ -188,14 +189,14 @@
   "homee_panel_row_3_title": "Course",
   "homee_panel_title": "What you will find here",
   "homee_primary_cta": "Start with the music",
-  "homee_release_1_description": "The best place for a first listen if you want the core Lil SBD sound: pressure up front, cleaner control underneath.",
+  "homee_release_1_description": "The best place for a first listen if you want to get a feel of what I do, today.",
   "homee_release_1_eyebrow": "Start here",
   "homee_release_1_title": "Newest release",
-  "homee_release_2_description": "A slot for the rougher edge of the project, when you want the kicks harder and the drop less polite.",
-  "homee_release_2_eyebrow": "Heavier side",
-  "homee_release_2_title": "For the harder edge",
-  "homee_release_3_description": "The cut that shows the project is not only about force, but also about tension, movement, and structure.",
-  "homee_release_3_eyebrow": "More than impact",
+  "homee_release_2_description": "Here's one song that leans into being as hard as possible, but still feels like me.",
+  "homee_release_2_eyebrow": "Harder",
+  "homee_release_2_title": "On the harder side",
+  "homee_release_3_description": "A song that shows that it's more than just zaag.",
+  "homee_release_3_eyebrow": "More than zaag",
   "homee_release_3_title": "For the balance",
   "homee_release_link_apple_music": "Apple Music",
   "homee_release_link_soundcloud": "SoundCloud",
@@ -204,5 +205,72 @@
   "homee_release_link_youtube_video": "YouTube",
   "homee_secondary_cta": "See the free course",
   "language_label": "Language",
-  "learn_router": "Learn Paraglide JS"
+  "learn_router": "Learn Paraglide JS",
+  "download": {
+    "meta": {
+      "title": "Free downloads",
+      "description": "Download Lil SBD tracks for free in WAV or MP3. Uptempo hardcore, zaag kicks, no strings attached."
+    },
+    "intro": {
+      "eyebrow": "Free downloads",
+      "title": "Take the tracks with you",
+      "description": "Every track here is free to download in WAV or MP3. Play them out, put them in your sets, or just keep them offline."
+    },
+    "picker": {
+      "title": "Pick your tracks",
+      "description": "Select one or several. Yes, it's 100% free.",
+      "format_label": "Format",
+      "select_all": "Select all",
+      "selected_count": "{count} of {total} selected",
+      "preview": "Preview {title}",
+      "pause": "Pause {title}",
+      "download_one": "Download {title}",
+      "cta_none": "Select a track",
+      "cta_one": "Download track",
+      "cta_many": "Download {count} tracks",
+      "hint_zip": "Several tracks are saved as one ZIP file.",
+      "hint_sequential": "Each track downloads as its own file. Your browser may ask you to allow multiple downloads.",
+      "zipping": "Building your ZIP… {done} of {count} tracks",
+      "progress_size": "{loaded} of {total}",
+      "sequential": "Starting downloads… {done} of {count}",
+      "cancel": "Cancel",
+      "done_zip": "ZIP saved. Enjoy the tracks.",
+      "done_files": "Download started. Enjoy the tracks.",
+      "error": "Something went wrong while downloading. Try again, or grab the tracks one by one.",
+      "empty": "No tracks are available for download right now."
+    },
+    "support": {
+      "eyebrow": "Optional",
+      "title": "Like what you hear?",
+      "description": "The downloads are free and stay free. If a track ends up in your set or your playlist, these help more than you'd think.",
+      "soundcloud_follow_title": "Follow on SoundCloud",
+      "soundcloud_follow_description": "New releases and free downloads land there first.",
+      "soundcloud_repost_title": "Repost or like the track",
+      "soundcloud_repost_description": "The easiest way to get a track in front of more people.",
+      "instagram_title": "Follow on Instagram",
+      "instagram_description": "Previews, behind the scenes, and what's coming next.",
+      "follow": "Follow",
+      "open_on_soundcloud": "Open on SoundCloud",
+      "footnote": "None of this is required. Thanks for listening either way."
+    },
+    "thanks": {
+      "title": "Your download has started",
+      "description": "Thanks for grabbing it. If you want to help the project grow, here's how. Completely optional.",
+      "close": "Close"
+    }
+  },
+  "footer": {
+    "tagline": "Uptempo hardcore from eastern France. Heavy kicks, real musicality.",
+    "navigation": "Navigation",
+    "socials": "Socials",
+    "contact": "Direct contact",
+    "rights": "© {year} LIL SBD. All rights reserved."
+  },
+  "not_found": {
+    "eyebrow": "404",
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has been moved.",
+    "back_home": "Back to home"
+  }
 }
+

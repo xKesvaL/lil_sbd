@@ -59,6 +59,12 @@ export const translatedPathnames = createTranslatedPathnames({
     fr: "/",
   },
   // "/course": {
+  "/download": {
+    en: "/download",
+    de: "/download",
+    fr: "/telecharger",
+  },
+  // "/course": {
   //   en: "/course",
   //   de: "/kurs",
   //   fr: "/cours",

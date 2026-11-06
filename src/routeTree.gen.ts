@@ -9,16 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as CourseRouteImport } from './routes/course'
+import { Route as DownloadRouteImport } from './routes/download'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CourseIndexRouteImport } from './routes/course.index'
-import { Route as CourseChapterSlugRouteImport } from './routes/course.$chapterSlug'
-import { Route as CourseChapterSlugIndexRouteImport } from './routes/course.$chapterSlug.index'
-import { Route as CourseChapterSlugLessonSlugRouteImport } from './routes/course.$chapterSlug.$lessonSlug'
 
-const CourseRoute = CourseRouteImport.update({
-  id: '/course',
-  path: '/course',
+const DownloadRoute = DownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -26,88 +22,40 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CourseIndexRoute = CourseIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CourseRoute,
-} as any)
-const CourseChapterSlugRoute = CourseChapterSlugRouteImport.update({
-  id: '/$chapterSlug',
-  path: '/$chapterSlug',
-  getParentRoute: () => CourseRoute,
-} as any)
-const CourseChapterSlugIndexRoute = CourseChapterSlugIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CourseChapterSlugRoute,
-} as any)
-const CourseChapterSlugLessonSlugRoute =
-  CourseChapterSlugLessonSlugRouteImport.update({
-    id: '/$lessonSlug',
-    path: '/$lessonSlug',
-    getParentRoute: () => CourseChapterSlugRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/course': typeof CourseRouteWithChildren
-  '/course/$chapterSlug': typeof CourseChapterSlugRouteWithChildren
-  '/course/': typeof CourseIndexRoute
-  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
-  '/course/$chapterSlug/': typeof CourseChapterSlugIndexRoute
+  '/download': typeof DownloadRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/course': typeof CourseIndexRoute
-  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
-  '/course/$chapterSlug': typeof CourseChapterSlugIndexRoute
+  '/download': typeof DownloadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/course': typeof CourseRouteWithChildren
-  '/course/$chapterSlug': typeof CourseChapterSlugRouteWithChildren
-  '/course/': typeof CourseIndexRoute
-  '/course/$chapterSlug/$lessonSlug': typeof CourseChapterSlugLessonSlugRoute
-  '/course/$chapterSlug/': typeof CourseChapterSlugIndexRoute
+  '/download': typeof DownloadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/course'
-    | '/course/$chapterSlug'
-    | '/course/'
-    | '/course/$chapterSlug/$lessonSlug'
-    | '/course/$chapterSlug/'
+  fullPaths: '/' | '/download'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/course'
-    | '/course/$chapterSlug/$lessonSlug'
-    | '/course/$chapterSlug'
-  id:
-    | '__root__'
-    | '/'
-    | '/course'
-    | '/course/$chapterSlug'
-    | '/course/'
-    | '/course/$chapterSlug/$lessonSlug'
-    | '/course/$chapterSlug/'
+  to: '/' | '/download'
+  id: '__root__' | '/' | '/download'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CourseRoute: typeof CourseRouteWithChildren
+  DownloadRoute: typeof DownloadRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/course': {
-      id: '/course'
-      path: '/course'
-      fullPath: '/course'
-      preLoaderRoute: typeof CourseRouteImport
+    '/download': {
+      id: '/download'
+      path: '/download'
+      fullPath: '/download'
+      preLoaderRoute: typeof DownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -117,66 +65,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/course/': {
-      id: '/course/'
-      path: '/'
-      fullPath: '/course/'
-      preLoaderRoute: typeof CourseIndexRouteImport
-      parentRoute: typeof CourseRoute
-    }
-    '/course/$chapterSlug': {
-      id: '/course/$chapterSlug'
-      path: '/$chapterSlug'
-      fullPath: '/course/$chapterSlug'
-      preLoaderRoute: typeof CourseChapterSlugRouteImport
-      parentRoute: typeof CourseRoute
-    }
-    '/course/$chapterSlug/': {
-      id: '/course/$chapterSlug/'
-      path: '/'
-      fullPath: '/course/$chapterSlug/'
-      preLoaderRoute: typeof CourseChapterSlugIndexRouteImport
-      parentRoute: typeof CourseChapterSlugRoute
-    }
-    '/course/$chapterSlug/$lessonSlug': {
-      id: '/course/$chapterSlug/$lessonSlug'
-      path: '/$lessonSlug'
-      fullPath: '/course/$chapterSlug/$lessonSlug'
-      preLoaderRoute: typeof CourseChapterSlugLessonSlugRouteImport
-      parentRoute: typeof CourseChapterSlugRoute
-    }
   }
 }
 
-interface CourseChapterSlugRouteChildren {
-  CourseChapterSlugLessonSlugRoute: typeof CourseChapterSlugLessonSlugRoute
-  CourseChapterSlugIndexRoute: typeof CourseChapterSlugIndexRoute
-}
-
-const CourseChapterSlugRouteChildren: CourseChapterSlugRouteChildren = {
-  CourseChapterSlugLessonSlugRoute: CourseChapterSlugLessonSlugRoute,
-  CourseChapterSlugIndexRoute: CourseChapterSlugIndexRoute,
-}
-
-const CourseChapterSlugRouteWithChildren =
-  CourseChapterSlugRoute._addFileChildren(CourseChapterSlugRouteChildren)
-
-interface CourseRouteChildren {
-  CourseChapterSlugRoute: typeof CourseChapterSlugRouteWithChildren
-  CourseIndexRoute: typeof CourseIndexRoute
-}
-
-const CourseRouteChildren: CourseRouteChildren = {
-  CourseChapterSlugRoute: CourseChapterSlugRouteWithChildren,
-  CourseIndexRoute: CourseIndexRoute,
-}
-
-const CourseRouteWithChildren =
-  CourseRoute._addFileChildren(CourseRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CourseRoute: CourseRouteWithChildren,
+  DownloadRoute: DownloadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -98,13 +98,25 @@ export default function DarkVeil({
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const canvas = ref.current as HTMLCanvasElement;
-    const parent = canvas.parentElement as HTMLElement;
+    const canvas = ref.current;
+    const parent = canvas?.parentElement;
+    if (!canvas || !parent) {
+      return;
+    }
 
-    const renderer = new Renderer({
-      dpr: Math.min(window.devicePixelRatio, 2),
-      canvas,
-    });
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const effectiveScale = isCoarsePointer ? Math.min(resolutionScale, 0.65) : resolutionScale;
+
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        dpr: isCoarsePointer ? 1 : Math.min(window.devicePixelRatio || 1, 1.5),
+        canvas,
+      });
+    } catch {
+      return;
+    }
 
     const gl = renderer.gl;
     const geometry = new Triangle(gl);
@@ -126,21 +138,8 @@ export default function DarkVeil({
 
     const mesh = new Mesh(gl, { geometry, program });
 
-    const resize = () => {
-      const w = parent.clientWidth,
-        h = parent.clientHeight;
-      renderer.setSize(w * resolutionScale, h * resolutionScale);
-      program.uniforms.uResolution.value.set(w, h);
-    };
-
-    window.addEventListener("resize", resize);
-    resize();
-
-    const start = performance.now();
-    let frame = 0;
-
-    const loop = () => {
-      program.uniforms.uTime.value = ((performance.now() - start) / 1000) * speed;
+    const renderFrame = (timeSeconds: number) => {
+      program.uniforms.uTime.value = timeSeconds * speed;
       program.uniforms.uHueShift.value = hueShift;
       program.uniforms.uNoise.value = noiseIntensity;
       program.uniforms.uScan.value = scanlineIntensity;
@@ -148,14 +147,60 @@ export default function DarkVeil({
       program.uniforms.uWarp.value = warpAmount;
       program.uniforms.uVerticalOffset.value = verticalOffset;
       renderer.render({ scene: mesh });
+    };
+
+    const resize = () => {
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
+      renderer.setSize(w * effectiveScale, h * effectiveScale);
+      program.uniforms.uResolution.value.set(w * effectiveScale, h * effectiveScale);
+      if (motionQuery.matches || document.hidden) {
+        renderFrame((performance.now() - start) / 1000);
+      }
+    };
+
+    const start = performance.now();
+    let frame = 0;
+    let isRunning = false;
+
+    const loop = () => {
+      if (!isRunning) {
+        return;
+      }
+      renderFrame((performance.now() - start) / 1000);
       frame = requestAnimationFrame(loop);
     };
 
-    loop();
+    const stopLoop = () => {
+      isRunning = false;
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    };
+
+    const updatePlaybackState = () => {
+      if (document.hidden || motionQuery.matches) {
+        stopLoop();
+        renderFrame((performance.now() - start) / 1000);
+      } else if (!isRunning) {
+        isRunning = true;
+        frame = requestAnimationFrame(loop);
+      }
+    };
+
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", updatePlaybackState);
+    motionQuery.addEventListener("change", updatePlaybackState);
+
+    resize();
+    updatePlaybackState();
 
     return () => {
-      cancelAnimationFrame(frame);
+      stopLoop();
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", updatePlaybackState);
+      motionQuery.removeEventListener("change", updatePlaybackState);
     };
   }, [
     hueShift,
@@ -169,3 +214,4 @@ export default function DarkVeil({
   ]);
   return <canvas ref={ref} className="w-full h-full block" />;
 }
+

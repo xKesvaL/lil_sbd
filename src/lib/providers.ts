@@ -1,15 +1,26 @@
-import { IconBrandApple, IconBrandSoundcloud, IconBrandSpotify, IconBrandYoutube } from "@tabler/icons-react";
+import {
+  IconBrandApple,
+  IconBrandSoundcloud,
+  IconBrandSpotify,
+  IconBrandYoutube,
+} from "@tabler/icons-react";
 import type { ComponentType, SVGProps } from "react";
 import { IconBrandYoutubeMusic } from "#/components/icons/icon-brand-youtube-music.tsx";
 import { m } from "#/paraglide/messages";
 
-export const listenProviderOrder = ["spotify", "soundcloud", "youtubeMusic", "appleMusic", "youtube"] as const 
+export const listenProviderOrder = [
+  "spotify",
+  "soundcloud",
+  "youtubeMusic",
+  "appleMusic",
+  "youtube",
+] as const;
 
 export type ListenProvider = (typeof listenProviderOrder)[number];
 
-type PlatformSong = Record<ListenProvider, string>
+type PlatformSong = Record<ListenProvider, string>;
 
-type BootlegSong = Record<Extract<ListenProvider, "youtube" | "soundcloud">, string>
+type BootlegSong = Record<Extract<ListenProvider, "youtube" | "soundcloud">, string>;
 export interface Song {
   slug: string;
   title: string;
@@ -20,8 +31,9 @@ export interface Song {
   urlWAV: string;
   urlMP3: string;
   album?: string;
+  /** Set to `false` to hide this track from the free download page. Defaults to downloadable. */
+  downloadable?: boolean;
 }
-
 
 type ProviderConfig = {
   label: () => string;

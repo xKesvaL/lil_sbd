@@ -7,9 +7,10 @@ import {
   IconBrandTiktok,
   IconBrandYoutube,
   IconExternalLink,
+  IconMail,
   IconMusic,
   IconPlayerPlay,
-  IconSparkles,
+  // IconSparkles,
 } from "@tabler/icons-react";
 import type { ComponentType, SVGProps } from "react";
 import {
@@ -28,6 +29,7 @@ import {
   CardTitle,
 } from "#/components/ui/card.tsx";
 import { listenProviderOrder, providerConfig, type Song } from "#/lib/providers.ts";
+import { socials } from "#/lib/socials.ts";
 import { latestSong, sortedSongs } from "#/lib/songs.ts";
 import { cn } from "#/lib/utils.ts";
 import { m } from "#/paraglide/messages";
@@ -47,56 +49,56 @@ type SocialLink = {
 
 const socialLinks: SocialLink[] = [
   {
-    href: "https://instagram.com/",
+    href: socials.instagram,
     label: "Instagram",
     Icon: IconBrandInstagram,
   },
   {
-    href: "https://tiktok.com/",
+    href: socials.tiktok,
     label: "TikTok",
     Icon: IconBrandTiktok,
   },
   {
-    href: "https://open.spotify.com/",
+    href: socials.spotify,
     label: "Spotify",
     Icon: IconBrandSpotify,
   },
   {
-    href: "https://youtube.com/",
+    href: socials.youtube,
     label: "YouTube",
     Icon: IconBrandYoutube,
   },
   {
-    href: "https://soundcloud.com/lil_sbd",
+    href: socials.soundcloud,
     label: "SoundCloud",
     Icon: IconBrandSoundcloud,
   },
 ];
 
-const featureCards = [
-  {
-    title: () => m["homee_feature_1_title"](),
-    description: () => m["homee_feature_1_description"](),
-    Icon: IconSparkles,
-  },
-  {
-    title: () => m["homee_feature_2_title"](),
-    description: () => m["homee_feature_2_description"](),
-    Icon: IconMusic,
-  },
-  // {
-  //   title: () => m["homee_feature_3_title"](),
-  //   description: () => m["homee_feature_3_description"](),
-  //   Icon: IconBooks,
-  // },
-] as const;
+// const featureCards = [
+//   {
+//     title: () => m["homee_feature_1_title"](),
+//     description: () => m["homee_feature_1_description"](),
+//     Icon: IconSparkles,
+//   },
+//   {
+//     title: () => m["homee_feature_2_title"](),
+//     description: () => m["homee_feature_2_description"](),
+//     Icon: IconMusic,
+//   },
+//   {
+//     title: () => m["homee_feature_3_title"](),
+//     description: () => m["homee_feature_3_description"](),
+//     Icon: IconBooks,
+//   },
+// ] as const;
 
-const focusItems = [
-  () => m["homee_focus_item_1"](),
-  () => m["homee_focus_item_2"](),
-  () => m["homee_focus_item_3"](),
-  // () => m["homee_focus_item_4"](),
-] as const;
+// const focusItems = [
+//   () => m["homee_focus_item_1"](),
+//   () => m["homee_focus_item_2"](),
+//   () => m["homee_focus_item_3"](),
+//   () => m["homee_focus_item_4"](),
+// ] as const;
 
 // const courseItems = [
 //   () => m["homee_course_item_1"](),
@@ -152,7 +154,12 @@ function getPreferredSongLink(song: Song | null | undefined) {
   }
 
   for (const provider of listenProviderOrder) {
-    const href = song.links[provider];
+    const href =
+      "spotify" in song.links
+        ? song.links[provider]
+        : provider === "soundcloud" || provider === "youtube"
+          ? song.links[provider]
+          : undefined;
 
     if (href) {
       return { href, ...providerConfig[provider] };
@@ -174,11 +181,7 @@ export function HomeSections() {
       eyebrow: m["homee_release_2_eyebrow"](),
       title: m["homee_release_2_title"](),
       description: m["homee_release_2_description"](),
-      song:
-        sortedSongs.find((song) => song.slug === "we-are-damned") ??
-        sortedSongs.find((song) => song.slug === "top-of-the-world") ??
-        sortedSongs[1] ??
-        null,
+      song: sortedSongs.find((song) => song.slug === "hardcore-power") ?? sortedSongs[1] ?? null,
     },
     {
       eyebrow: m["homee_release_3_eyebrow"](),
@@ -194,7 +197,7 @@ export function HomeSections() {
 
   return (
     <>
-      <section id="about" className="kcontainer section">
+      {/* <section id="about" className="kcontainer section">
         <div className="grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,1.2fr)]">
           {featureCards.map(({ title, description, Icon }) => (
             <Card key={title()} className="border border-border/60 bg-card/40 backdrop-blur-sm">
@@ -227,7 +230,7 @@ export function HomeSections() {
             </CardContent>
           </Card>
         </div>
-      </section>
+      </section> */}
 
       <section id="music" className="kcontainer section pt-0">
         <div className="flex flex-col gap-6">
@@ -258,14 +261,14 @@ export function HomeSections() {
               return (
                 <Card
                   key={highlight.title}
-                  className="overflow-hidden border border-border/60 bg-card/40 backdrop-blur-sm"
+                  className="overflow-hidden border border-border/60 bg-card/40 backdrop-blur-sm pt-0"
                 >
-                  <div className="relative aspect-4/3 overflow-hidden">
+                  <div className="relative aspect-8/7 overflow-hidden">
                     {highlight.song?.artworkUrl ? (
                       <img
                         src={highlight.song.artworkUrl}
                         alt={highlight.song.title}
-                        className="size-full object-cover"
+                        className="size-full object-cover aspect-square"
                         loading="lazy"
                       />
                     ) : (
@@ -392,16 +395,38 @@ export function HomeSections() {
               description={m["homee_contact_description"]()}
             />
 
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={socials.mailto}
+                className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}
+              >
+                <IconMail />
+                {m["homee_contact_email_cta"]()}
+              </a>
+              <a
+                href="#top"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "w-full sm:w-auto",
+                )}
+              >
+                <IconMusic />
+                {m["homee_primary_cta"]()}
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-3 rounded-[1.25rem] border border-primary/25 bg-primary/8 px-4 py-3 text-sm">
+            <IconMail className="size-4.5 shrink-0 text-primary" />
             <a
-              href="#top"
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full lg:w-auto")}
+              href={socials.mailto}
+              className="font-medium text-foreground underline-offset-4 hover:underline"
             >
-              <IconMusic />
-              {m["homee_primary_cta"]()}
+              {socials.email}
             </a>
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {socialLinks.map(({ href, label, Icon }) => (
               <a
                 key={label}

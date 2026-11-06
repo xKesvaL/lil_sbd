@@ -138,7 +138,7 @@ export const HomeHero = () => {
             />
           </div>
         </div>
-        <Card className="bg-background/50 backdrop-blur-xl ring-0 border">
+        <Card id="hero-player" className="bg-background/50 backdrop-blur-xl ring-0 border">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl">{m["common.latest_releases"]()}</CardTitle>

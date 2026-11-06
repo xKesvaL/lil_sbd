@@ -360,7 +360,7 @@ const AudioPlayerVolume = ({
       <DropdownMenuTrigger
         render={
           <AudioPlayerButton
-            className={cn("hidden md:flex", className)}
+            className={cn("flex", className)}
             data-slot="audio-volume-button"
             size={size}
             tooltipLabel={isMuted ? "Muted" : `Volume ${Math.round(effectiveVolumePercent)}%`}

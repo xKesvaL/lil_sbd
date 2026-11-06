@@ -36,7 +36,12 @@ const config = defineConfig({
     }),
     nitro({ rollupConfig: { external: [/^@sentry\//] } }),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      router: {
+        // Keep course route files on disk while hiding /course* routes until the course launches.
+        routeFileIgnorePattern: "^course",
+      },
+    }),
     viteReact(),
     babel({ presets: [reactCompilerPreset()] }),
     contentCollections(),

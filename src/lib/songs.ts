@@ -297,6 +297,11 @@ export const sortedSongs = songs.sort(compareSongsByReleaseDate);
 
 export const audioPlayerTracks = sortedSongs.map(songToAudioPlayerTrack);
 
+export const isDownloadable = (song: Song) => song.downloadable !== false;
+
+/** Songs offered on the free download page, newest first. */
+export const downloadableSongs = sortedSongs.filter(isDownloadable);
+
 export function getLatestSong(songList: Song[]) {
   return [...songList].sort(compareSongsByReleaseDate)[0] ?? null;
 }
