@@ -18,6 +18,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@faker-js/faker": "^10.4.0",
     "@fontsource-variable/outfit": "^5.2.8",
+    "@headless-tree/core": "^1.8.0",
+    "@headless-tree/react": "^1.8.0",
     "@phosphor-icons/react": "^2.1.10",
     "@posthog/react": "^1.9.1",
     "@tabler/icons-react": "^3.44.0",
@@ -78,6 +80,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "jsdom": "^30.1.2",
+    "sharp": "^0.35.5",
     "typescript": "^6.0.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.1.0",
     "vite-plus": "1.1.0"

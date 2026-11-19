@@ -64,6 +64,16 @@ export const translatedPathnames = createTranslatedPathnames({
     de: "/download",
     fr: "/telecharger",
   },
+  "/presskit": {
+    en: "/presskit",
+    de: "/presskit",
+    fr: "/presskit",
+  },
+  "/presskit/download": {
+    en: "/presskit/download",
+    de: "/presskit/download",
+    fr: "/presskit/download",
+  },
   // "/course": {
   //   en: "/course",
   //   de: "/kurs",

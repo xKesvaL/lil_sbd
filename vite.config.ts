@@ -8,6 +8,7 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite-plus";
 import { translatedPathnames } from "./src/lib/i18n";
+import { presskitManifestPlugin } from "./src/vite/presskit-manifest";
 
 const config = defineConfig({
   test: {
@@ -45,6 +46,7 @@ const config = defineConfig({
     viteReact(),
     babel({ presets: [reactCompilerPreset()] }),
     contentCollections(),
+    presskitManifestPlugin(),
   ],
 });
 

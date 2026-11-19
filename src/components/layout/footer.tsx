@@ -61,6 +61,12 @@ export const Footer = () => {
                 {m["nav.download"]()}
               </Link>
               <Link
+                to="/presskit"
+                className="w-fit text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {m["nav.presskit"]()}
+              </Link>
+              <Link
                 to="/"
                 hash="contact"
                 className="w-fit text-muted-foreground transition-colors hover:text-foreground"

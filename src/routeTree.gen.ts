@@ -9,9 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PresskitRouteImport } from './routes/presskit'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PresskitIndexRouteImport } from './routes/presskit.index'
+import { Route as PresskitDownloadRouteImport } from './routes/presskit.download'
 
+const PresskitRoute = PresskitRouteImport.update({
+  id: '/presskit',
+  path: '/presskit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DownloadRoute = DownloadRouteImport.update({
   id: '/download',
   path: '/download',
@@ -22,35 +30,72 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PresskitIndexRoute = PresskitIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PresskitRoute,
+} as any)
+const PresskitDownloadRoute = PresskitDownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
+  getParentRoute: () => PresskitRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/presskit': typeof PresskitRouteWithChildren
+  '/presskit/download': typeof PresskitDownloadRoute
+  '/presskit/': typeof PresskitIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/presskit/download': typeof PresskitDownloadRoute
+  '/presskit': typeof PresskitIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
+  '/presskit': typeof PresskitRouteWithChildren
+  '/presskit/download': typeof PresskitDownloadRoute
+  '/presskit/': typeof PresskitIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/download'
+  fullPaths:
+    | '/'
+    | '/download'
+    | '/presskit'
+    | '/presskit/download'
+    | '/presskit/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/download'
-  id: '__root__' | '/' | '/download'
+  to: '/' | '/download' | '/presskit/download' | '/presskit'
+  id:
+    | '__root__'
+    | '/'
+    | '/download'
+    | '/presskit'
+    | '/presskit/download'
+    | '/presskit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DownloadRoute: typeof DownloadRoute
+  PresskitRoute: typeof PresskitRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/presskit': {
+      id: '/presskit'
+      path: '/presskit'
+      fullPath: '/presskit'
+      preLoaderRoute: typeof PresskitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/download': {
       id: '/download'
       path: '/download'
@@ -65,12 +110,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/presskit/': {
+      id: '/presskit/'
+      path: '/'
+      fullPath: '/presskit/'
+      preLoaderRoute: typeof PresskitIndexRouteImport
+      parentRoute: typeof PresskitRoute
+    }
+    '/presskit/download': {
+      id: '/presskit/download'
+      path: '/download'
+      fullPath: '/presskit/download'
+      preLoaderRoute: typeof PresskitDownloadRouteImport
+      parentRoute: typeof PresskitRoute
+    }
   }
 }
+
+interface PresskitRouteChildren {
+  PresskitDownloadRoute: typeof PresskitDownloadRoute
+  PresskitIndexRoute: typeof PresskitIndexRoute
+}
+
+const PresskitRouteChildren: PresskitRouteChildren = {
+  PresskitDownloadRoute: PresskitDownloadRoute,
+  PresskitIndexRoute: PresskitIndexRoute,
+}
+
+const PresskitRouteWithChildren = PresskitRoute._addFileChildren(
+  PresskitRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DownloadRoute: DownloadRoute,
+  PresskitRoute: PresskitRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -166,7 +166,8 @@
     "contact": "Contact",
     "course": "Course",
     "music": "Music",
-    "download": "Free downloads"
+    "download": "Free downloads",
+    "presskit": "Press Kit"
   },
   "header_tagline": "Uptempo hardcore from eastern France.",
   "homee_menu_open_label": "Open navigation",
@@ -265,6 +266,54 @@
     "socials": "Socials",
     "contact": "Direct contact",
     "rights": "© {year} LIL SBD. All rights reserved."
+  },
+  "presskit": {
+    "meta": {
+      "title": "Press Kit",
+      "description": "Official Lil SBD press kit, logos, HD photos, and bios for promoters, venues, and media.",
+      "download_title": "Press Kit Downloads",
+      "download_description": "Browse and download official Lil SBD press kit files, logos, HD photos, and bios."
+    },
+    "index": {
+      "eyebrow": "Press Kit",
+      "title": "Press Kit",
+      "description": "Official press files, logos, high-resolution photos, and bios are available in the download drive.",
+      "cta": "Open download drive"
+    },
+    "download": {
+      "eyebrow": "Press Kit",
+      "title": "Press Pack",
+      "description": "Browse folders and download individual files, any folder as a ZIP, or the full press pack.",
+      "download_pack": "Download full pack (.zip)",
+      "download_folder": "Download folder (.zip)",
+      "download_file": "Download {name}",
+      "download_folder_aria": "Download {name} as ZIP",
+      "folders_heading": "Press Pack",
+      "browse_tree": "Folders",
+      "expand_all": "Expand all folders",
+      "collapse_all": "Collapse all folders",
+      "view_list": "List view",
+      "view_grid": "Grid view",
+      "col_name": "Name",
+      "col_type": "Type",
+      "col_size": "Size",
+      "type_folder": "Folder",
+      "items_count_zero": "Empty",
+      "items_count_one": "1 file",
+      "items_count_many": "{count} files",
+      "pack_summary": "{count} files · {size}",
+      "pack_empty_summary": "No files uploaded yet",
+      "empty_folder_title": "This folder is empty",
+      "empty_folder_description": "No files have been added to {name} yet. Check back soon or browse the other folders.",
+      "empty_pack_title": "No files available yet",
+      "empty_pack_description": "The press pack folders are ready, and files will appear here as soon as they are uploaded.",
+      "zipping": "Building {name}… {done} of {count} files",
+      "progress_size": "{loaded} of {total}",
+      "cancel": "Cancel",
+      "done_zip": "{name} is ready.",
+      "done_file": "Download started for {name}.",
+      "error": "Could not download {name}. Try again or grab files individually."
+    }
   },
   "not_found": {
     "eyebrow": "404",

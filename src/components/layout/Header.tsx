@@ -204,10 +204,11 @@ function ListenNowDropdown({ className }: { className?: string }) {
   );
 }
 
-type NavItem = { to: "/" | "/download"; hash?: string; label: () => string };
+type NavItem = { to: "/" | "/download" | "/presskit"; hash?: string; label: () => string };
 const navItems: readonly NavItem[] = [
   { to: "/", hash: "music", label: () => m["nav.music"]() },
   { to: "/download", label: () => m["nav.download"]() },
+  { to: "/presskit", label: () => m["nav.presskit"]() },
   // { to: "/course", label: () => m["nav.course"]() },
   { to: "/", hash: "contact", label: () => m["nav.contact"]() },
 ];
@@ -215,7 +216,7 @@ const navItems: readonly NavItem[] = [
 export const Header = () => {
   return (
     <header className="fixed top-4 z-40 w-full kcontainer left-1/2 -translate-x-1/2">
-      <div className=" flex items-center gap-2 border bg-background/50 p-4 shadow-lg shadow-black/10 backdrop-blur-xl">
+      <div className="flex items-center gap-2 border bg-background/70 p-4 shadow-lg shadow-black/10 backdrop-blur-md">
         <Link to="/" className="min-w-0 flex gap-3">
           <img src="/logo192.png" alt="Lil SBD Logo" className="size-7" />
           <span className="block truncate text-sm font-medium sm:text-xl">

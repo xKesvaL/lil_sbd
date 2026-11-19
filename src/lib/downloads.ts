@@ -113,7 +113,9 @@ export function supportsStreamingSave(): boolean {
  * Opens the native "Save as" dialog for the ZIP.
  * Must be called synchronously from a user gesture (click handler), before any `await`.
  */
-export function requestZipFileHandle(): Promise<FileSystemFileHandle> {
+export function requestZipFileHandle(
+  suggestedName = ZIP_FILE_NAME,
+): Promise<FileSystemFileHandle> {
   const picker = (window as WindowWithSaveFilePicker).showSaveFilePicker;
 
   if (!picker) {
@@ -121,7 +123,7 @@ export function requestZipFileHandle(): Promise<FileSystemFileHandle> {
   }
 
   return picker({
-    suggestedName: ZIP_FILE_NAME,
+    suggestedName,
     types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
   });
 }
@@ -129,7 +131,7 @@ export function requestZipFileHandle(): Promise<FileSystemFileHandle> {
 export const isAbortError = (error: unknown) =>
   error instanceof DOMException && error.name === "AbortError";
 
-function triggerAnchorDownload(url: string, fileName: string) {
+export function triggerAnchorDownload(url: string, fileName: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;

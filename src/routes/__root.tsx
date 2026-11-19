@@ -151,10 +151,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <Header />
 
               <main id="top" className="relative overflow-hidden pt-20">
-                <div className="fixed inset-0 -z-10 opacity-70">
+                <div className="pointer-events-none fixed inset-0 -z-10 transform-gpu opacity-70">
                   <DarkVeil
                     hueShift={0}
-                    noiseIntensity={0.07}
+                    noiseIntensity={0.02}
                     scanlineIntensity={0.15}
                     speed={1.5}
                     scanlineFrequency={1}
