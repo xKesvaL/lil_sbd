@@ -4,18 +4,20 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   HeadContent,
+  Link,
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Toaster } from "sonner";
+import { MiniPlayer } from "#/components/audio/mini-player.tsx";
 import { AudioProvider } from "#/components/audio/player.tsx";
 import { Footer } from "#/components/layout/footer.tsx";
 import { Header } from "#/components/layout/Header.tsx";
 import DarkVeil from "#/components/react-bits/dark-veil.tsx";
 import { buttonVariants } from "#/components/ui/button.tsx";
 import { TooltipProvider } from "#/components/ui/tooltip.tsx";
-import { audioPlayerTracks } from "#/lib/songs.ts";
+import { audioPlayerTracks, latestSong } from "#/lib/songs.ts";
 import { cn } from "#/lib/utils.ts";
 import { m } from "#/paraglide/messages";
 import { getLocale } from "#/paraglide/runtime";
@@ -177,6 +179,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               </main>
 
               {!isAdminStudio ? <Footer /> : null}
+              {!isAdminStudio ? <MiniPlayer /> : null}
               <Toaster theme="dark" richColors position="bottom-right" />
               <TanStackDevtools
                 config={{
