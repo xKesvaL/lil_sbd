@@ -22,8 +22,51 @@ import type {
   PerformanceRating,
   PostStatus,
   PublishablePlatform,
+  SocialConnectionMetadata,
   SocialPlatform,
 } from "#/db/schema";
+
+export type TokenHealthStatus = "healthy" | "expiring_soon" | "expired" | "no_expiry";
+
+export interface SafeSocialConnection {
+  id: string;
+  platform: PublishablePlatform;
+  accountName: string;
+  externalAccountId: string;
+  hasRefreshToken: boolean;
+  tokenExpiresAt: Date | string | null;
+  tokenHealth: TokenHealthStatus;
+  daysUntilExpiry: number | null;
+  metadata: SocialConnectionMetadata;
+  updatedAt: Date | string;
+}
+
+export interface StorageStatsSummary {
+  storageMode: "s3_r2" | "local_nvme";
+  dataDir: string;
+  totalBytes: number;
+  byNamespace: Record<string, { files: number; bytes: number }>;
+}
+
+export const WEEKDAY_OPTIONS: Array<{ day: number; short: string; label: string }> = [
+  { day: 1, short: "Mon", label: "Monday" },
+  { day: 2, short: "Tue", label: "Tuesday" },
+  { day: 3, short: "Wed", label: "Wednesday" },
+  { day: 4, short: "Thu", label: "Thursday" },
+  { day: 5, short: "Fri", label: "Friday" },
+  { day: 6, short: "Sat", label: "Saturday" },
+  { day: 0, short: "Sun", label: "Sunday" },
+];
+
+export const COMMON_TIMEZONES = [
+  "Europe/Paris",
+  "Europe/Amsterdam",
+  "Europe/London",
+  "Europe/Berlin",
+  "UTC",
+  "America/New_York",
+  "America/Los_Angeles",
+];
 
 export const PUBLISHABLE_PLATFORMS: PublishablePlatform[] = [
   "instagram_reels",

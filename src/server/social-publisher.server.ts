@@ -579,13 +579,20 @@ export async function publishSocialPostToPlatforms(
   }
 
   const states = platformsToRun.map((p) => deliveries[p]?.status);
+  const allTargetPlatforms = (post.platforms ?? []).filter(isPublishablePlatform);
+  const allPostPlatformsSucceeded =
+    allTargetPlatforms.length > 0 &&
+    allTargetPlatforms.every((p) => {
+      const st = deliveries[p]?.status;
+      return st === "published" || st === "inbox_ready";
+    });
   const allSucceeded =
     states.length > 0 && states.every((s) => s === "published" || s === "inbox_ready");
   const anySucceeded = states.some((s) => s === "published" || s === "inbox_ready");
 
   const firstPublishedUrl =
-    deliveries.instagram_reels?.externalUrl ||
     deliveries.youtube_shorts?.externalUrl ||
+    deliveries.instagram_reels?.externalUrl ||
     deliveries.tiktok?.externalUrl ||
     post.publishedUrl ||
     null;
@@ -594,9 +601,10 @@ export async function publishSocialPostToPlatforms(
     .update(socialPosts)
     .set({
       platformDeliveries: deliveries,
-      ...(allSucceeded
+      ...(allPostPlatformsSucceeded
         ? {
             status: "posted",
+            reviewStatus: "published",
             postedAt: new Date(),
             autoPublish: false,
             publishedUrl: firstPublishedUrl,
@@ -607,6 +615,36 @@ export async function publishSocialPostToPlatforms(
     .where(eq(socialPosts.id, post.id));
 
   return { deliveries, allSucceeded, anySucceeded };
+}
+
+export type TokenHealthStatus = "healthy" | "expiring_soon" | "expired" | "no_expiry";
+
+export function evaluateTokenHealth(conn: {
+  tokenExpiresAt: Date | string | null;
+  refreshToken?: string | null;
+}): {
+  tokenHealth: TokenHealthStatus;
+  daysUntilExpiry: number | null;
+} {
+  if (!conn.tokenExpiresAt) {
+    return { tokenHealth: "no_expiry", daysUntilExpiry: null };
+  }
+  const expiresMs = new Date(conn.tokenExpiresAt).getTime();
+  if (Number.isNaN(expiresMs)) {
+    return { tokenHealth: "no_expiry", daysUntilExpiry: null };
+  }
+  const diffDays = Math.ceil((expiresMs - Date.now()) / 86_400_000);
+  if (diffDays <= 0) {
+    // If we have a refresh token (YouTube / TikTok), access token auto-refreshes transparently
+    if (conn.refreshToken) {
+      return { tokenHealth: "healthy", daysUntilExpiry: diffDays };
+    }
+    return { tokenHealth: "expired", daysUntilExpiry: diffDays };
+  }
+  if (diffDays <= 7 && !conn.refreshToken) {
+    return { tokenHealth: "expiring_soon", daysUntilExpiry: diffDays };
+  }
+  return { tokenHealth: "healthy", daysUntilExpiry: diffDays };
 }
 
 export async function testSocialConnection(

@@ -41,14 +41,171 @@ const updateProfileSchema = z.object({
   primaryLanguage: z.enum(["en", "fr", "bilingual"]),
   defaultBioLink: z.string(),
   weeklyPostTarget: z.number().int().min(1).max(21),
+  targetPlatforms: z
+    .array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"]))
+    .optional(),
+  timezone: z.string().optional(),
+  cadenceDays: z.array(z.number().int().min(0).max(6)).optional(),
+  cadenceTime: z.string().optional(),
+  avoidConsecutiveTrack: z.boolean().optional(),
+  defaultEditPreset: z.enum(["subtle", "punchy", "hard"]).optional(),
+  burnHookOverlay: z.boolean().optional(),
+  audioHeadroomDb: z.number().min(-6).max(0).optional(),
+  rawRetentionDays: z.number().int().min(1).max(90).optional(),
+  renderedRetentionDays: z.number().int().min(7).max(3650).optional(),
+  storageCapGb: z.number().int().min(1).max(500).optional(),
+  geminiModel: z.string().optional(),
 });
 
 export const updateArtistProfileServerFn = createServerFn({ method: "POST" })
   .validator(updateProfileSchema)
   .handler(async ({ data }) => {
     const { updateArtistProfileImpl } = await import("./socials.server");
-    return updateArtistProfileImpl(data);
+    return updateArtistProfileImpl({
+      ...data,
+      targetPlatforms: data.targetPlatforms as SocialPlatform[] | undefined,
+    });
   });
+
+export const createAutopilotDraftServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      catalogItemId: z.string().nullable().optional(),
+      title: z.string().optional(),
+      videoUrl: z.string().min(1),
+      videoFileName: z.string().nullable().optional(),
+      videoSizeBytes: z.number().int().nullable().optional(),
+      caption: z.string().optional(),
+      hashtags: z.array(z.string()).optional(),
+      platforms: z.array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"])).optional(),
+      editMode: z.enum(["single_take", "multi_take", "manual"]).optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { createAutopilotDraftImpl } = await import("./socials.server");
+    return createAutopilotDraftImpl({
+      ...data,
+      platforms: data.platforms as PublishablePlatform[] | undefined,
+    });
+  });
+
+export const approveReviewPostServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      postId: z.string(),
+      scheduledFor: z.string().nullable().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { approveReviewPostImpl } = await import("./socials.server");
+    return approveReviewPostImpl(data);
+  });
+
+export const updateReviewPostServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      postId: z.string(),
+      title: z.string().optional(),
+      caption: z.string().optional(),
+      onScreenHook: z.string().optional(),
+      hashtags: z.array(z.string()).optional(),
+      platforms: z.array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"])).optional(),
+      catalogItemId: z.string().nullable().optional(),
+      scheduledFor: z.string().nullable().optional(),
+      reviewStatus: z.enum(["needs_review", "approved"]).optional(),
+      autoPublish: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { updateReviewPostImpl } = await import("./socials.server");
+    return updateReviewPostImpl({
+      ...data,
+      platforms: data.platforms as PublishablePlatform[] | undefined,
+    });
+  });
+
+export const rebalanceAutopilotQueueServerFn = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const { rebalanceAutopilotQueueImpl } = await import("./socials.server");
+    return rebalanceAutopilotQueueImpl();
+  },
+);
+
+export const retryFailedPublishServerFn = createServerFn({ method: "POST" })
+  .validator(z.object({ postId: z.string() }))
+  .handler(async ({ data }) => {
+    const { retryFailedPublishImpl } = await import("./socials.server");
+    return retryFailedPublishImpl(data);
+  });
+
+const rawClipInputSchema = z.object({
+  storageKey: z.string().min(1),
+  fileName: z.string().min(1),
+  sizeBytes: z.number().int().min(0),
+  durationSec: z.number().nullable().optional(),
+  width: z.number().int().nullable().optional(),
+  height: z.number().int().nullable().optional(),
+  fps: z.number().nullable().optional(),
+});
+
+export const createAutoEditPostServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      catalogItemId: z.string().min(1),
+      rawClip: rawClipInputSchema.optional(),
+      rawClips: z.array(rawClipInputSchema).min(1).max(6).optional(),
+      preset: z.enum(["subtle", "punchy", "hard"]).optional(),
+      platforms: z.array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"])).optional(),
+      burnHookOverlay: z.boolean().optional(),
+      hookOverlayText: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { createAutoEditPostImpl } = await import("./socials.server");
+    return createAutoEditPostImpl({
+      ...data,
+      platforms: data.platforms as PublishablePlatform[] | undefined,
+    });
+  });
+
+export const rerenderPostServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      postId: z.string().min(1),
+      preset: z.enum(["subtle", "punchy", "hard"]).optional(),
+      overrideOffsetSec: z.number().optional(),
+      overrideMasterStartSec: z.number().optional(),
+      overrideDurationSec: z.number().min(3).max(45).optional(),
+      audioHeadroomDb: z.number().min(-6).max(0).optional(),
+      burnHookOverlay: z.boolean().optional(),
+      hookOverlayText: z.string().optional(),
+      forceResync: z.boolean().optional(),
+      variationSeed: z.number().int().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { rerenderPostImpl } = await import("./socials.server");
+    return rerenderPostImpl(data);
+  });
+
+export const rerollPostCopyServerFn = createServerFn({ method: "POST" })
+  .validator(z.object({ postId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { rerollPostCopyImpl } = await import("./socials.server");
+    return rerollPostCopyImpl(data);
+  });
+
+export const rerollPostEditServerFn = createServerFn({ method: "POST" })
+  .validator(z.object({ postId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { rerollPostEditImpl } = await import("./socials.server");
+    return rerollPostEditImpl(data);
+  });
+
+export const runMediaCleanupNowServerFn = createServerFn({ method: "POST" }).handler(async () => {
+  const { runMediaCleanupNowImpl } = await import("./socials.server");
+  return runMediaCleanupNowImpl();
+});
 
 const upsertSocialConnectionSchema = z.object({
   platform: z.enum(["instagram_reels", "tiktok", "youtube_shorts"]),
@@ -153,12 +310,40 @@ export const analyzeCatalogTrackServerFn = createServerFn({ method: "POST" })
     return analyzeCatalogTrackImpl(data);
   });
 
-export const analyzeAllCatalogTracksServerFn = createServerFn({ method: "POST" }).handler(
-  async () => {
+export const analyzeAllCatalogTracksServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z
+      .object({
+        forceReanalyze: z.boolean().optional(),
+      })
+      .optional(),
+  )
+  .handler(async ({ data }) => {
     const { analyzeAllCatalogTracksImpl } = await import("./socials.server");
-    return analyzeAllCatalogTracksImpl();
-  },
-);
+    return analyzeAllCatalogTracksImpl(data);
+  });
+
+export const updateTrackAudioMetadataServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      catalogItemId: z.string().min(1),
+      bpm: z.number().int().min(60).max(350).optional(),
+      bpmLocked: z.boolean().optional(),
+      addMarker: z
+        .object({
+          kind: z.enum(["drop", "highlight", "kick_switch", "kickroll"]),
+          dropImpactSec: z.number().min(0).max(3600),
+          label: z.string().max(48).optional(),
+        })
+        .optional(),
+      removeMarkerIndex: z.number().int().min(0).optional(),
+      removeMarkerId: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { updateTrackAudioMetadataImpl } = await import("./socials.server");
+    return updateTrackAudioMetadataImpl(data);
+  });
 
 export const getBackgroundJobsServerFn = createServerFn({ method: "GET" }).handler(async () => {
   const { getBackgroundJobsImpl } = await import("./socials.server");

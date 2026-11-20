@@ -6,6 +6,7 @@ import {
   type CampaignType,
   type CatalogItemType,
   type ContentPillar,
+  type EditPreset,
   hashtagPresets,
   type IdeaCategory,
   type IdeaDifficulty,
@@ -19,22 +20,36 @@ import {
   type SocialPlatform,
   socialConnections,
   socialPosts,
+  socialRawClips,
+  type TrackDropSection,
+  type TrackSectionKind,
 } from "#/db/schema";
 import { auth, getConfiguredAuthInfo } from "#/lib/auth";
 import { CAMPAIGN_ROLLOUT_BLUEPRINTS } from "#/lib/social-blueprints";
 import { songs } from "#/lib/songs";
 import {
+  computeRebalancedQueue,
+  enqueueDueAutopilotPosts,
+  findNextAvailableSlot,
+} from "./autopilot-scheduler.server";
+import { rerollCopyWithGemini, resolveGeminiConfig } from "./gemini-director.server";
+import {
   enqueueJob,
   ensureBackgroundWorkerRunning,
+  listActiveJobsForUser,
   listUserJobs,
-  processNextJob,
+  processJobById,
+  triggerWorkerTickSoon,
 } from "./jobs.server";
+import {
+  getSystemReadinessDiagnostics,
+  runMediaLifecycleCleanup,
+} from "./media-cleanup.server";
 import { getLocalStorageStats } from "./media-storage.server";
 import {
-  ensureSocialSchedulerRunning,
+  evaluateTokenHealth,
   isPublishablePlatform,
   publishSocialPostToPlatforms,
-  runDueScheduledPosts,
   testSocialConnection,
 } from "./social-publisher.server";
 
@@ -110,57 +125,80 @@ export async function getStudioDashboardImpl() {
   const session = await requireSessionImpl();
   const userId = session.user.id;
 
-  ensureSocialSchedulerRunning();
   ensureBackgroundWorkerRunning();
   await ensureArtistProfile(userId, session.user.name);
-  await runDueScheduledPosts();
+  await enqueueDueAutopilotPosts();
 
-  const [profileRows, catalog, campaigns, posts, templates, presets, rawConnections, recentJobs] =
-    await Promise.all([
-      db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
-      db
-        .select()
-        .from(artistCatalogItems)
-        .where(eq(artistCatalogItems.userId, userId))
-        .orderBy(desc(artistCatalogItems.releaseDate)),
-      db
-        .select()
-        .from(releaseCampaigns)
-        .where(eq(releaseCampaigns.userId, userId))
-        .orderBy(desc(releaseCampaigns.releaseDate)),
-      db
-        .select()
-        .from(socialPosts)
-        .where(eq(socialPosts.userId, userId))
-        .orderBy(asc(socialPosts.sortOrder), desc(socialPosts.createdAt)),
-      db
-        .select()
-        .from(ideaTemplates)
-        .where(or(isNull(ideaTemplates.userId), eq(ideaTemplates.userId, userId)))
-        .orderBy(desc(ideaTemplates.createdAt)),
-      db
-        .select()
-        .from(hashtagPresets)
-        .where(or(isNull(hashtagPresets.userId), eq(hashtagPresets.userId, userId)))
-        .orderBy(asc(hashtagPresets.name)),
-      db
-        .select()
-        .from(socialConnections)
-        .where(eq(socialConnections.userId, userId))
-        .orderBy(asc(socialConnections.platform)),
-      listUserJobs(userId, 20),
-    ]);
+  const [
+    profileRows,
+    catalog,
+    campaigns,
+    posts,
+    templates,
+    presets,
+    rawConnections,
+    recentJobs,
+    rawClips,
+  ] = await Promise.all([
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+    db
+      .select()
+      .from(artistCatalogItems)
+      .where(eq(artistCatalogItems.userId, userId))
+      .orderBy(desc(artistCatalogItems.releaseDate)),
+    db
+      .select()
+      .from(releaseCampaigns)
+      .where(eq(releaseCampaigns.userId, userId))
+      .orderBy(desc(releaseCampaigns.releaseDate)),
+    db
+      .select()
+      .from(socialPosts)
+      .where(eq(socialPosts.userId, userId))
+      .orderBy(asc(socialPosts.sortOrder), desc(socialPosts.createdAt)),
+    db
+      .select()
+      .from(ideaTemplates)
+      .where(or(isNull(ideaTemplates.userId), eq(ideaTemplates.userId, userId)))
+      .orderBy(desc(ideaTemplates.createdAt)),
+    db
+      .select()
+      .from(hashtagPresets)
+      .where(or(isNull(hashtagPresets.userId), eq(hashtagPresets.userId, userId)))
+      .orderBy(asc(hashtagPresets.name)),
+    db
+      .select()
+      .from(socialConnections)
+      .where(eq(socialConnections.userId, userId))
+      .orderBy(asc(socialConnections.platform)),
+    listUserJobs(userId, 20),
+    db
+      .select()
+      .from(socialRawClips)
+      .where(eq(socialRawClips.userId, userId))
+      .orderBy(asc(socialRawClips.orderIndex)),
+  ]);
 
-  const connections = rawConnections.map((c) => ({
-    id: c.id,
-    platform: c.platform,
-    accountName: c.accountName,
-    externalAccountId: c.externalAccountId,
-    hasRefreshToken: Boolean(c.refreshToken),
-    tokenExpiresAt: c.tokenExpiresAt,
-    metadata: c.metadata,
-    updatedAt: c.updatedAt,
-  }));
+  const connections = rawConnections.map((c) => {
+    const health = evaluateTokenHealth(c);
+    return {
+      id: c.id,
+      platform: c.platform,
+      accountName: c.accountName,
+      externalAccountId: c.externalAccountId,
+      hasRefreshToken: Boolean(c.refreshToken),
+      tokenExpiresAt: c.tokenExpiresAt,
+      tokenHealth: health.tokenHealth,
+      daysUntilExpiry: health.daysUntilExpiry,
+      metadata: c.metadata,
+      updatedAt: c.updatedAt,
+    };
+  });
+
+  const nextAvailableSlot = findNextAvailableSlot({
+    profile: profileRows[0],
+    existingPosts: posts,
+  });
 
   const oauthEnvConfigured = {
     instagram_reels: Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET),
@@ -170,6 +208,8 @@ export async function getStudioDashboardImpl() {
         (process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET),
     ),
   };
+
+  const geminiCfg = resolveGeminiConfig(profileRows[0]?.geminiModel);
 
   return {
     user: session.user,
@@ -184,6 +224,13 @@ export async function getStudioDashboardImpl() {
     databaseMode: getDatabaseMode(),
     storageStats: getLocalStorageStats(),
     recentJobs,
+    rawClips,
+    nextAvailableSlot: nextAvailableSlot.toISOString(),
+    geminiStatus: {
+      configured: Boolean(geminiCfg.apiKey),
+      model: geminiCfg.model,
+    },
+    diagnostics: getSystemReadinessDiagnostics(Boolean(geminiCfg.apiKey), geminiCfg.model),
   };
 }
 
@@ -194,6 +241,18 @@ export async function updateArtistProfileImpl(data: {
   primaryLanguage: "en" | "fr" | "bilingual";
   defaultBioLink: string;
   weeklyPostTarget: number;
+  targetPlatforms?: SocialPlatform[];
+  timezone?: string;
+  cadenceDays?: number[];
+  cadenceTime?: string;
+  avoidConsecutiveTrack?: boolean;
+  defaultEditPreset?: "subtle" | "punchy" | "hard";
+  burnHookOverlay?: boolean;
+  audioHeadroomDb?: number;
+  rawRetentionDays?: number;
+  renderedRetentionDays?: number;
+  storageCapGb?: number;
+  geminiModel?: string;
 }) {
   const session = await requireSessionImpl();
   const userId = session.user.id;
@@ -207,11 +266,611 @@ export async function updateArtistProfileImpl(data: {
       primaryLanguage: data.primaryLanguage,
       defaultBioLink: data.defaultBioLink,
       weeklyPostTarget: data.weeklyPostTarget,
+      ...(data.targetPlatforms ? { targetPlatforms: data.targetPlatforms } : {}),
+      ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
+      ...(data.cadenceDays !== undefined ? { cadenceDays: data.cadenceDays } : {}),
+      ...(data.cadenceTime !== undefined ? { cadenceTime: data.cadenceTime } : {}),
+      ...(data.avoidConsecutiveTrack !== undefined
+        ? { avoidConsecutiveTrack: data.avoidConsecutiveTrack }
+        : {}),
+      ...(data.defaultEditPreset !== undefined
+        ? { defaultEditPreset: data.defaultEditPreset }
+        : {}),
+      ...(data.burnHookOverlay !== undefined ? { burnHookOverlay: data.burnHookOverlay } : {}),
+      ...(data.audioHeadroomDb !== undefined ? { audioHeadroomDb: data.audioHeadroomDb } : {}),
+      ...(data.rawRetentionDays !== undefined ? { rawRetentionDays: data.rawRetentionDays } : {}),
+      ...(data.renderedRetentionDays !== undefined
+        ? { renderedRetentionDays: data.renderedRetentionDays }
+        : {}),
+      ...(data.storageCapGb !== undefined ? { storageCapGb: data.storageCapGb } : {}),
+      ...(data.geminiModel !== undefined ? { geminiModel: data.geminiModel } : {}),
       updatedAt: new Date(),
     })
     .where(eq(artistProfiles.userId, userId));
 
   return { ok: true };
+}
+
+export async function createAutopilotDraftImpl(data: {
+  catalogItemId?: string | null;
+  title?: string;
+  videoUrl: string;
+  videoFileName?: string | null;
+  videoSizeBytes?: number | null;
+  caption?: string;
+  hashtags?: string[];
+  platforms?: PublishablePlatform[];
+  editMode?: "single_take" | "multi_take" | "manual";
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const [profileRows, existingPosts, trackRows] = await Promise.all([
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+    db.select().from(socialPosts).where(eq(socialPosts.userId, userId)),
+    data.catalogItemId
+      ? db
+          .select()
+          .from(artistCatalogItems)
+          .where(
+            and(
+              eq(artistCatalogItems.id, data.catalogItemId),
+              eq(artistCatalogItems.userId, userId),
+            ),
+          )
+          .limit(1)
+      : Promise.resolve([]),
+  ]);
+
+  const profile = profileRows[0];
+  const track = trackRows[0] ?? null;
+
+  const nextSlot = findNextAvailableSlot({
+    profile,
+    existingPosts,
+    catalogItemId: track?.id ?? null,
+  });
+
+  const defaultPlatforms = (profile?.targetPlatforms ?? ["youtube_shorts", "instagram_reels", "tiktok"]).filter(
+    isPublishablePlatform,
+  );
+  const chosenPlatforms: PublishablePlatform[] =
+    data.platforms && data.platforms.length > 0
+      ? data.platforms
+      : defaultPlatforms.length > 0
+        ? defaultPlatforms
+        : ["youtube_shorts", "instagram_reels", "tiktok"];
+
+  const resolvedTitle =
+    data.title?.trim() ||
+    (track ? `${track.title} — Drop Clip` : data.videoFileName?.replace(/\.[^/.]+$/, "") || "New Clip");
+
+  const defaultCaption =
+    data.caption?.trim() ||
+    (track
+      ? `${track.title} (${track.bpm ?? 200} BPM). Out everywhere — ${profile?.defaultBioLink || "https://lilsbd.com"}`
+      : `New uptempo drop — ${profile?.defaultBioLink || "https://lilsbd.com"}`);
+
+  const defaultHashtags =
+    data.hashtags && data.hashtags.length > 0
+      ? data.hashtags
+      : ["#uptempohardcore", "#zaagkick", "#harddance", "#lilsbd"];
+
+  const id = `post-${userId}-${Date.now()}`;
+  await db.insert(socialPosts).values({
+    id,
+    userId,
+    catalogItemId: track?.id ?? null,
+    title: resolvedTitle,
+    status: "ready",
+    reviewStatus: "needs_review",
+    editMode: data.editMode ?? "manual",
+    platforms: chosenPlatforms,
+    pillar: "drop_showcase",
+    scheduledFor: nextSlot,
+    videoUrl: data.videoUrl,
+    videoFileName: data.videoFileName ?? null,
+    videoSizeBytes: data.videoSizeBytes ?? null,
+    autoPublish: false,
+    platformDeliveries: {},
+    onScreenHookEn: "",
+    onScreenHookFr: "",
+    captionEn: defaultCaption,
+    captionFr: defaultCaption,
+    ctaEn: "",
+    ctaFr: "",
+    hashtags: defaultHashtags,
+    shotList: [],
+  });
+
+  return { id, scheduledFor: nextSlot.toISOString() };
+}
+
+export async function approveReviewPostImpl(data: {
+  postId: string;
+  scheduledFor?: string | null;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const [profileRows, allPosts] = await Promise.all([
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+    db.select().from(socialPosts).where(eq(socialPosts.userId, userId)),
+  ]);
+
+  const post = allPosts.find((p) => p.id === data.postId);
+  if (!post) throw new Error("Post not found");
+  if (!post.videoUrl) throw new Error("Attach a video before approving for Autopilot");
+
+  let targetSlot = data.scheduledFor
+    ? new Date(data.scheduledFor)
+    : post.scheduledFor
+      ? new Date(post.scheduledFor)
+      : null;
+
+  if (!targetSlot || Number.isNaN(targetSlot.getTime()) || targetSlot.getTime() < Date.now() + 60_000) {
+    targetSlot = findNextAvailableSlot({
+      profile: profileRows[0],
+      existingPosts: allPosts,
+      catalogItemId: post.catalogItemId,
+      excludePostId: post.id,
+    });
+  }
+
+  const nextDeliveries: PlatformDeliveries = { ...(post.platformDeliveries ?? {}) };
+  for (const p of (post.platforms ?? []).filter(isPublishablePlatform)) {
+    const cur = nextDeliveries[p]?.status;
+    if (!cur || cur === "idle" || cur === "failed") {
+      nextDeliveries[p] = { status: "scheduled", updatedAt: new Date().toISOString() };
+    }
+  }
+
+  await db
+    .update(socialPosts)
+    .set({
+      status: "ready",
+      reviewStatus: "approved",
+      autoPublish: true,
+      scheduledFor: targetSlot,
+      platformDeliveries: nextDeliveries,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(socialPosts.id, post.id), eq(socialPosts.userId, userId)));
+
+  return { ok: true, scheduledFor: targetSlot.toISOString() };
+}
+
+export async function updateReviewPostImpl(data: {
+  postId: string;
+  title?: string;
+  caption?: string;
+  onScreenHook?: string;
+  hashtags?: string[];
+  platforms?: PublishablePlatform[];
+  catalogItemId?: string | null;
+  scheduledFor?: string | null;
+  reviewStatus?: "needs_review" | "approved";
+  autoPublish?: boolean;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.title !== undefined) updates.title = data.title.trim() || "Untitled Clip";
+  if (data.caption !== undefined) {
+    updates.captionEn = data.caption;
+    updates.captionFr = data.caption;
+  }
+  if (data.onScreenHook !== undefined) {
+    updates.onScreenHookEn = data.onScreenHook;
+    updates.onScreenHookFr = data.onScreenHook;
+  }
+  if (data.hashtags !== undefined) updates.hashtags = data.hashtags;
+  if (data.platforms !== undefined && data.platforms.length > 0) updates.platforms = data.platforms;
+  if (data.catalogItemId !== undefined) updates.catalogItemId = data.catalogItemId;
+  if (data.scheduledFor !== undefined) {
+    updates.scheduledFor = data.scheduledFor ? new Date(data.scheduledFor) : null;
+  }
+  if (data.reviewStatus !== undefined) {
+    updates.reviewStatus = data.reviewStatus;
+    if (data.reviewStatus === "needs_review") {
+      updates.autoPublish = false;
+    }
+  }
+  if (data.autoPublish !== undefined) updates.autoPublish = data.autoPublish;
+
+  await db
+    .update(socialPosts)
+    .set(updates)
+    .where(and(eq(socialPosts.id, data.postId), eq(socialPosts.userId, userId)));
+
+  return { ok: true };
+}
+
+export async function rebalanceAutopilotQueueImpl() {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const [profileRows, allPosts] = await Promise.all([
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+    db.select().from(socialPosts).where(eq(socialPosts.userId, userId)),
+  ]);
+
+  const approvedUpcoming = allPosts.filter(
+    (p) => p.status !== "posted" && p.reviewStatus === "approved" && p.autoPublish,
+  );
+  const lastPublished = allPosts
+    .filter((p) => p.status === "posted" && p.postedAt)
+    .sort((a, b) => new Date(b.postedAt!).getTime() - new Date(a.postedAt!).getTime())[0];
+
+  const rebalanced = computeRebalancedQueue({
+    profile: profileRows[0],
+    posts: approvedUpcoming,
+    lastPublishedTrackId: lastPublished?.catalogItemId ?? null,
+  });
+
+  for (const entry of rebalanced) {
+    await db
+      .update(socialPosts)
+      .set({ scheduledFor: entry.scheduledFor, updatedAt: new Date() })
+      .where(and(eq(socialPosts.id, entry.postId), eq(socialPosts.userId, userId)));
+  }
+
+  return { rebalancedCount: rebalanced.length };
+}
+
+export async function retryFailedPublishImpl(data: { postId: string }) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const rows = await db
+    .select()
+    .from(socialPosts)
+    .where(and(eq(socialPosts.id, data.postId), eq(socialPosts.userId, userId)))
+    .limit(1);
+  const post = rows[0];
+  if (!post) throw new Error("Post not found");
+
+  const pendingPlatforms = (post.platforms ?? [])
+    .filter(isPublishablePlatform)
+    .filter((p) => {
+      const st = post.platformDeliveries?.[p]?.status;
+      return st !== "published" && st !== "inbox_ready";
+    });
+
+  if (pendingPlatforms.length === 0) {
+    return { ok: true, message: "Already published to all selected platforms." };
+  }
+
+  const job = await enqueueJob({
+    userId,
+    postId: post.id,
+    jobType: "publish_post",
+    stageLabel: `Retrying publish for "${post.title}"`,
+    payload: { postId: post.id, platforms: pendingPlatforms },
+    maxAttempts: 3,
+  });
+  ensureBackgroundWorkerRunning();
+  return { ok: true, jobId: job.id };
+}
+
+type RawClipInput = {
+  storageKey: string;
+  fileName: string;
+  sizeBytes: number;
+  durationSec?: number | null;
+  width?: number | null;
+  height?: number | null;
+  fps?: number | null;
+};
+
+export async function createAutoEditPostImpl(data: {
+  catalogItemId: string;
+  rawClip?: RawClipInput;
+  rawClips?: RawClipInput[];
+  preset?: EditPreset;
+  platforms?: PublishablePlatform[];
+  burnHookOverlay?: boolean;
+  hookOverlayText?: string;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const clipsToAttach: RawClipInput[] =
+    data.rawClips && data.rawClips.length > 0
+      ? data.rawClips.slice(0, 6)
+      : data.rawClip
+        ? [data.rawClip]
+        : [];
+  if (clipsToAttach.length === 0) {
+    throw new Error("Upload at least one raw clip to auto-edit.");
+  }
+
+  const [profileRows, existingPosts, trackRows] = await Promise.all([
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+    db.select().from(socialPosts).where(eq(socialPosts.userId, userId)),
+    db
+      .select()
+      .from(artistCatalogItems)
+      .where(
+        and(
+          eq(artistCatalogItems.id, data.catalogItemId),
+          eq(artistCatalogItems.userId, userId),
+        ),
+      )
+      .limit(1),
+  ]);
+
+  const profile = profileRows[0];
+  const track = trackRows[0];
+  if (!track) {
+    throw new Error("Select a valid track with master audio for auto-editing.");
+  }
+
+  const nextSlot = findNextAvailableSlot({
+    profile,
+    existingPosts,
+    catalogItemId: track.id,
+  });
+
+  const chosenPlatforms: PublishablePlatform[] =
+    data.platforms && data.platforms.length > 0
+      ? data.platforms
+      : (profile?.targetPlatforms ?? ["youtube_shorts", "instagram_reels", "tiktok"]).filter(
+          isPublishablePlatform,
+        );
+
+  const isMultiTake = clipsToAttach.length > 1;
+  const preset: EditPreset = data.preset ?? profile?.defaultEditPreset ?? "punchy";
+  const postId = `post-${userId}-${Date.now()}`;
+  const defaultCaption = `${track.title} (${track.bpm ?? 200} BPM). Full track everywhere — ${profile?.defaultBioLink || "https://lilsbd.com"}`;
+
+  await db.insert(socialPosts).values({
+    id: postId,
+    userId,
+    catalogItemId: track.id,
+    title: isMultiTake
+      ? `${track.title} — ${clipsToAttach.length}-Angle Mashup`
+      : `${track.title} — Drop Clip`,
+    status: "editing",
+    reviewStatus: "processing",
+    editMode: isMultiTake ? "multi_take" : "single_take",
+    platforms:
+      chosenPlatforms.length > 0
+        ? chosenPlatforms
+        : ["youtube_shorts", "instagram_reels", "tiktok"],
+    pillar: "drop_showcase",
+    scheduledFor: nextSlot,
+    autoPublish: false,
+    platformDeliveries: {},
+    onScreenHookEn: data.hookOverlayText?.trim() || "",
+    onScreenHookFr: data.hookOverlayText?.trim() || "",
+    captionEn: defaultCaption,
+    captionFr: defaultCaption,
+    ctaEn: "",
+    ctaFr: "",
+    hashtags: ["#uptempohardcore", "#zaagkick", "#harddance", "#lilsbd"],
+    shotList: [],
+  });
+
+  for (let i = 0; i < clipsToAttach.length; i++) {
+    const clip = clipsToAttach[i]!;
+    await db.insert(socialRawClips).values({
+      id: `raw-${userId}-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+      userId,
+      postId,
+      storageKey: clip.storageKey,
+      fileName: clip.fileName,
+      sizeBytes: clip.sizeBytes,
+      durationSec: clip.durationSec ?? null,
+      width: clip.width ?? null,
+      height: clip.height ?? null,
+      fps: clip.fps ?? null,
+      orderIndex: i,
+    });
+  }
+
+  const job = await enqueueJob({
+    userId,
+    postId,
+    catalogItemId: track.id,
+    jobType: "render_video",
+    stageLabel: isMultiTake
+      ? `Queued ${clipsToAttach.length}-angle beat-cut mashup (${preset}) for ${track.title}`
+      : `Queued auto-edit (${preset}) for ${track.title}`,
+    payload: {
+      postId,
+      preset,
+      burnHookOverlay: data.burnHookOverlay ?? profile?.burnHookOverlay ?? false,
+      hookOverlayText: data.hookOverlayText?.trim() || "",
+    },
+    maxAttempts: 2,
+  });
+
+  ensureBackgroundWorkerRunning();
+
+  return {
+    postId,
+    jobId: job.id,
+    scheduledFor: nextSlot.toISOString(),
+  };
+}
+
+export async function rerenderPostImpl(data: {
+  postId: string;
+  preset?: EditPreset;
+  overrideOffsetSec?: number;
+  overrideMasterStartSec?: number;
+  overrideDurationSec?: number;
+  audioHeadroomDb?: number;
+  burnHookOverlay?: boolean;
+  hookOverlayText?: string;
+  forceResync?: boolean;
+  variationSeed?: number;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const postRows = await db
+    .select()
+    .from(socialPosts)
+    .where(and(eq(socialPosts.id, data.postId), eq(socialPosts.userId, userId)))
+    .limit(1);
+  const post = postRows[0];
+  if (!post) throw new Error("Post not found");
+
+  await db
+    .update(socialPosts)
+    .set({
+      reviewStatus: "processing",
+      status: "editing",
+      autoPublish: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(socialPosts.id, post.id));
+
+  const payload: Record<string, string | number | boolean | null> = {
+    postId: post.id,
+    // Keep manual tweaks/preset switches/cut shuffles fast and preserve user's edited copy
+    skipAiDirector: true,
+  };
+  if (data.preset !== undefined) payload.preset = data.preset;
+  if (data.overrideOffsetSec !== undefined) payload.overrideOffsetSec = data.overrideOffsetSec;
+  if (data.overrideMasterStartSec !== undefined)
+    payload.overrideMasterStartSec = data.overrideMasterStartSec;
+  if (data.overrideDurationSec !== undefined)
+    payload.overrideDurationSec = data.overrideDurationSec;
+  if (data.audioHeadroomDb !== undefined) payload.audioHeadroomDb = data.audioHeadroomDb;
+  if (data.burnHookOverlay !== undefined) payload.burnHookOverlay = data.burnHookOverlay;
+  if (data.hookOverlayText !== undefined) payload.hookOverlayText = data.hookOverlayText;
+  if (data.forceResync !== undefined) payload.forceResync = data.forceResync;
+  if (data.variationSeed !== undefined) payload.variationSeed = data.variationSeed;
+
+  const job = await enqueueJob({
+    userId,
+    postId: post.id,
+    catalogItemId: post.catalogItemId,
+    jobType: "render_video",
+    stageLabel:
+      data.variationSeed !== undefined
+        ? "Shuffling multi-take angle cuts..."
+        : `Re-rendering (${data.preset ?? post.editRecipe?.preset ?? "punchy"})...`,
+    payload,
+    maxAttempts: 2,
+  });
+
+  ensureBackgroundWorkerRunning();
+  return { ok: true, jobId: job.id };
+}
+
+export async function rerollPostCopyImpl(data: { postId: string }) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const [postRows, profileRows] = await Promise.all([
+    db
+      .select()
+      .from(socialPosts)
+      .where(and(eq(socialPosts.id, data.postId), eq(socialPosts.userId, userId)))
+      .limit(1),
+    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+  ]);
+
+  const post = postRows[0];
+  if (!post) throw new Error("Post not found");
+  const profile = profileRows[0];
+
+  const trackRows = post.catalogItemId
+    ? await db
+        .select()
+        .from(artistCatalogItems)
+        .where(eq(artistCatalogItems.id, post.catalogItemId))
+        .limit(1)
+    : [];
+  const track = trackRows[0];
+
+  const result = await rerollCopyWithGemini({
+    trackContext: {
+      title: track?.title || post.title,
+      bpm: Math.round(track?.audioAnalysis?.bpm || track?.bpm || 200),
+      albumOrChapter: track?.albumOrChapter,
+      releaseDate: track?.releaseDate,
+      stageName: profile?.stageName || "LIL SBD",
+      defaultBioLink: profile?.defaultBioLink || "https://lilsbd.com",
+      streamingUrl: track?.streamingLinks?.spotify || track?.streamingLinks?.soundcloud || null,
+    },
+    sceneSummary: post.editRecipe?.aiDirector?.sceneSummary,
+    previousCaption: post.captionEn,
+    profileGeminiModel: profile?.geminiModel,
+    variationSeed: Math.floor(Date.now() / 1000) % 997,
+  });
+
+  await db
+    .update(socialPosts)
+    .set({
+      title: result.copy.title,
+      captionEn: result.copy.caption,
+      captionFr: result.copy.caption,
+      onScreenHookEn: result.copy.hookOverlayText,
+      onScreenHookFr: result.copy.hookOverlayText,
+      hashtags: result.copy.hashtags,
+      updatedAt: new Date(),
+    })
+    .where(eq(socialPosts.id, post.id));
+
+  return {
+    ok: true,
+    source: result.source,
+    model: result.model,
+    copy: result.copy,
+  };
+}
+
+export async function rerollPostEditImpl(data: { postId: string }) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const postRows = await db
+    .select()
+    .from(socialPosts)
+    .where(and(eq(socialPosts.id, data.postId), eq(socialPosts.userId, userId)))
+    .limit(1);
+  const post = postRows[0];
+  if (!post) throw new Error("Post not found");
+
+  await db
+    .update(socialPosts)
+    .set({
+      reviewStatus: "processing",
+      status: "editing",
+      autoPublish: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(socialPosts.id, post.id));
+
+  const variationSeed = Math.floor(Math.random() * 10_000) + 1;
+  const job = await enqueueJob({
+    userId,
+    postId: post.id,
+    catalogItemId: post.catalogItemId,
+    jobType: "render_video",
+    stageLabel: "AI Director picking an alternate cut & copy...",
+    payload: {
+      postId: post.id,
+      skipAiDirector: false,
+      variationSeed,
+    },
+    maxAttempts: 2,
+  });
+
+  ensureBackgroundWorkerRunning();
+  return { ok: true, jobId: job.id };
+}
+
+export async function runMediaCleanupNowImpl() {
+  const session = await requireSessionImpl();
+  const summary = await runMediaLifecycleCleanup({ userId: session.user.id });
+  return { ok: true, summary };
 }
 
 export async function upsertSocialConnectionImpl(data: {
@@ -583,7 +1242,10 @@ export async function analyzeCatalogTrackImpl(data: { catalogItemId: string; run
   });
 
   if (data.runImmediately) {
-    const processed = await processNextJob();
+    const processed = await processJobById(job.id);
+    if (processed && (processed.status === "failed" || processed.error)) {
+      throw new Error(processed.error || `Audio analysis failed for ${item.title}`);
+    }
     const updatedRows = await db
       .select()
       .from(artistCatalogItems)
@@ -596,25 +1258,35 @@ export async function analyzeCatalogTrackImpl(data: { catalogItemId: string; run
   }
 
   ensureBackgroundWorkerRunning();
+  triggerWorkerTickSoon();
   return { job, analysis: item.audioAnalysis ?? null };
 }
 
-export async function analyzeAllCatalogTracksImpl() {
+export async function analyzeAllCatalogTracksImpl(data?: { forceReanalyze?: boolean }) {
   const session = await requireSessionImpl();
   const userId = session.user.id;
-  const items = await db
-    .select()
-    .from(artistCatalogItems)
-    .where(eq(artistCatalogItems.userId, userId));
+  const [items, activeJobs] = await Promise.all([
+    db.select().from(artistCatalogItems).where(eq(artistCatalogItems.userId, userId)),
+    listActiveJobsForUser(userId),
+  ]);
+
+  const activeTrackIds = new Set(
+    activeJobs
+      .filter((j) => j.jobType === "analyze_track" && j.catalogItemId)
+      .map((j) => j.catalogItemId!),
+  );
 
   let queuedCount = 0;
   for (const item of items) {
-    if (!item.audioAnalysis && (item.masterAudioPath || item.audioPreviewUrl)) {
+    const hasAudio = Boolean(item.masterAudioPath || item.audioPreviewUrl);
+    const needsAnalysis =
+      data?.forceReanalyze || !item.audioAnalysis || (item.audioAnalysis.version ?? 1) < 2;
+    if (hasAudio && needsAnalysis && !activeTrackIds.has(item.id)) {
       await enqueueJob({
         userId,
         catalogItemId: item.id,
         jobType: "analyze_track",
-        stageLabel: `Queued audio analysis for ${item.title}`,
+        stageLabel: `Queued Audio Brain v2 analysis for ${item.title}`,
         payload: { catalogItemId: item.id },
       });
       queuedCount++;
@@ -622,7 +1294,121 @@ export async function analyzeAllCatalogTracksImpl() {
   }
 
   ensureBackgroundWorkerRunning();
+  if (queuedCount > 0) {
+    triggerWorkerTickSoon();
+  }
   return { queuedCount };
+}
+
+export async function updateTrackAudioMetadataImpl(data: {
+  catalogItemId: string;
+  bpm?: number;
+  bpmLocked?: boolean;
+  addMarker?: {
+    kind: TrackSectionKind;
+    dropImpactSec: number;
+    label?: string;
+  };
+  removeMarkerIndex?: number;
+  removeMarkerId?: string;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const rows = await db
+    .select()
+    .from(artistCatalogItems)
+    .where(
+      and(eq(artistCatalogItems.id, data.catalogItemId), eq(artistCatalogItems.userId, userId)),
+    )
+    .limit(1);
+
+  const item = rows[0];
+  if (!item) {
+    throw new Error("Track not found in catalog");
+  }
+
+  const nextBpm =
+    data.bpm !== undefined && Number.isFinite(data.bpm)
+      ? Math.max(60, Math.min(350, Math.round(data.bpm)))
+      : (item.bpm ?? 200);
+
+  const existingAnalysis = item.audioAnalysis;
+  let nextAnalysis = existingAnalysis ? { ...existingAnalysis } : null;
+
+  if (nextAnalysis) {
+    if (data.bpmLocked !== undefined) {
+      nextAnalysis.bpmLocked = data.bpmLocked;
+    }
+    if (data.bpm !== undefined) {
+      nextAnalysis.bpm = nextBpm;
+      if (nextAnalysis.bpmLocked) {
+        delete nextAnalysis.bpmRange;
+      }
+    }
+
+    let nextDrops: TrackDropSection[] = [...(nextAnalysis.drops ?? [])];
+
+    if (data.removeMarkerId) {
+      nextDrops = nextDrops.filter((d) => d.id !== data.removeMarkerId);
+    } else if (
+      data.removeMarkerIndex !== undefined &&
+      data.removeMarkerIndex >= 0 &&
+      data.removeMarkerIndex < nextDrops.length
+    ) {
+      nextDrops.splice(data.removeMarkerIndex, 1);
+    }
+
+    if (data.addMarker) {
+      const impact = Number(
+        Math.max(0, Math.min(nextAnalysis.durationSec || 600, data.addMarker.dropImpactSec)).toFixed(
+          2,
+        ),
+      );
+      const kind: TrackSectionKind =
+        data.addMarker.kind === "drop" ? "drop" : "highlight";
+      const defaultLabel =
+        kind === "highlight"
+          ? "Highlight"
+          : `Drop ${nextDrops.filter((d) => (d.kind ?? "drop") === "drop").length + 1}`;
+      nextDrops.push({
+        id: `manual-${kind}-${Date.now()}-${Math.round(impact * 10)}`,
+        kind,
+        label: data.addMarker.label?.trim() || defaultLabel,
+        startSec: Number(Math.max(0, impact - (kind === "highlight" ? 2.5 : 3.5)).toFixed(2)),
+        endSec: Number(
+          Math.min(nextAnalysis.durationSec || impact + 16, impact + (kind === "highlight" ? 12 : 16)).toFixed(2),
+        ),
+        dropImpactSec: impact,
+        peakEnergy: 1,
+        bpm: nextBpm,
+        isManual: true,
+      });
+      nextDrops.sort((a, b) => a.dropImpactSec - b.dropImpactSec);
+    }
+
+    nextAnalysis.drops = nextDrops;
+  }
+
+  await db
+    .update(artistCatalogItems)
+    .set({
+      bpm: nextBpm,
+      ...(nextAnalysis
+        ? {
+            audioAnalysis: nextAnalysis,
+            hookTimestamps: nextAnalysis.drops.map((d) => ({
+              label: d.label,
+              startSec: Math.round(d.startSec),
+              endSec: Math.round(d.endSec),
+            })),
+          }
+        : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(artistCatalogItems.id, item.id));
+
+  return { ok: true, bpm: nextBpm, audioAnalysis: nextAnalysis };
 }
 
 export async function getBackgroundJobsImpl(limit = 25) {

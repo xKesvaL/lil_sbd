@@ -181,12 +181,18 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonRecord = { [key: string]: JsonValue };
 
+export type TrackSectionKind = "drop" | "highlight" | "kick_switch" | "kickroll";
+
 export interface TrackDropSection {
+  id?: string;
+  kind?: TrackSectionKind;
   label: string;
   startSec: number;
   endSec: number;
   dropImpactSec: number;
   peakEnergy: number;
+  bpm?: number;
+  isManual?: boolean;
 }
 
 export interface TrackAudioAnalysis {
@@ -194,6 +200,8 @@ export interface TrackAudioAnalysis {
   durationSec: number;
   sampleRate: number;
   bpm: number;
+  bpmRange?: [number, number];
+  bpmLocked?: boolean;
   beatConfidence: number;
   firstBeatSec: number;
   beatsSec: number[];
@@ -227,6 +235,14 @@ export interface PostEditRecipe {
   hookOverlayText?: string;
   segments: EditRecipeSegment[];
   fxEvents: EditRecipeFxEvent[];
+  aiDirector?: {
+    source: "gemini" | "deterministic_fallback";
+    model?: string;
+    sceneSummary?: string;
+    directorNotes?: string;
+    fallbackReason?: string;
+    directedAt: string;
+  };
 }
 
 // ============================================================================
