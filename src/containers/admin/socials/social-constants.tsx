@@ -17,11 +17,19 @@ import {
 import type { ComponentType, SVGProps } from "react";
 import type {
   ContentPillar,
+  DeliveryStatus,
   IdeaCategory,
   PerformanceRating,
   PostStatus,
+  PublishablePlatform,
   SocialPlatform,
 } from "#/db/schema";
+
+export const PUBLISHABLE_PLATFORMS: PublishablePlatform[] = [
+  "instagram_reels",
+  "tiktok",
+  "youtube_shorts",
+];
 
 export const PLATFORM_META: Record<
   SocialPlatform,
@@ -31,6 +39,7 @@ export const PLATFORM_META: Record<
     Icon: ComponentType<SVGProps<SVGSVGElement>>;
     badgeClass: string;
     optimalHashtagCount: [number, number];
+    publishModeHint: string;
   }
 > = {
   instagram_reels: {
@@ -39,20 +48,7 @@ export const PLATFORM_META: Record<
     Icon: IconBrandInstagram,
     badgeClass: "border-pink-500/40 bg-pink-500/15 text-pink-300",
     optimalHashtagCount: [3, 6],
-  },
-  instagram_carousel: {
-    label: "Instagram Carousel",
-    shortLabel: "IG Carousel",
-    Icon: IconLayoutCards,
-    badgeClass: "border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300",
-    optimalHashtagCount: [3, 8],
-  },
-  instagram_story: {
-    label: "Instagram Story",
-    shortLabel: "IG Story",
-    Icon: IconBrandInstagram,
-    badgeClass: "border-amber-500/40 bg-amber-500/15 text-amber-300",
-    optimalHashtagCount: [0, 2],
+    publishModeHint: "100% Public Auto-Publish (Graph API)",
   },
   tiktok: {
     label: "TikTok",
@@ -60,6 +56,7 @@ export const PLATFORM_META: Record<
     Icon: IconBrandTiktok,
     badgeClass: "border-cyan-500/40 bg-cyan-500/15 text-cyan-300",
     optimalHashtagCount: [3, 5],
+    publishModeHint: "Auto-Push to TikTok Inbox / Direct Post",
   },
   youtube_shorts: {
     label: "YouTube Shorts",
@@ -67,6 +64,63 @@ export const PLATFORM_META: Record<
     Icon: IconBrandYoutube,
     badgeClass: "border-red-500/40 bg-red-500/15 text-red-300",
     optimalHashtagCount: [3, 5],
+    publishModeHint: "Resumable Auto-Upload (#Shorts)",
+  },
+  instagram_carousel: {
+    label: "Instagram Carousel",
+    shortLabel: "IG Carousel",
+    Icon: IconLayoutCards,
+    badgeClass: "border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300",
+    optimalHashtagCount: [3, 8],
+    publishModeHint: "Manual Carousel",
+  },
+  instagram_story: {
+    label: "Instagram Story",
+    shortLabel: "IG Story",
+    Icon: IconBrandInstagram,
+    badgeClass: "border-amber-500/40 bg-amber-500/15 text-amber-300",
+    optimalHashtagCount: [0, 2],
+    publishModeHint: "Manual Story",
+  },
+};
+
+export const DELIVERY_STATUS_META: Record<
+  DeliveryStatus,
+  {
+    label: string;
+    dotClass: string;
+    badgeClass: string;
+  }
+> = {
+  idle: {
+    label: "Not Scheduled",
+    dotClass: "bg-slate-400",
+    badgeClass: "border-border/60 bg-background/60 text-muted-foreground",
+  },
+  scheduled: {
+    label: "Pre-Programmed",
+    dotClass: "bg-amber-400",
+    badgeClass: "border-amber-500/40 bg-amber-500/15 text-amber-200",
+  },
+  publishing: {
+    label: "Uploading...",
+    dotClass: "bg-sky-400 animate-pulse",
+    badgeClass: "border-sky-500/40 bg-sky-500/15 text-sky-200",
+  },
+  published: {
+    label: "Published Live",
+    dotClass: "bg-emerald-400",
+    badgeClass: "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+  },
+  inbox_ready: {
+    label: "Sent to TikTok Inbox",
+    dotClass: "bg-cyan-400",
+    badgeClass: "border-cyan-500/40 bg-cyan-500/15 text-cyan-200",
+  },
+  failed: {
+    label: "Failed",
+    dotClass: "bg-rose-400",
+    badgeClass: "border-rose-500/40 bg-rose-500/15 text-rose-200",
   },
 };
 
@@ -104,8 +158,8 @@ export const STATUS_COLUMNS: Array<{
   },
   {
     id: "ready",
-    label: "Ready to Post",
-    description: "Exported & caption-ready in buffer",
+    label: "Ready / Scheduled",
+    description: "Video attached & pre-programmed to post",
     dotClass: "bg-emerald-400",
     badgeClass: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
     Icon: IconBolt,
@@ -113,7 +167,7 @@ export const STATUS_COLUMNS: Array<{
   {
     id: "posted",
     label: "Posted",
-    description: "Live on socials & tracking metrics",
+    description: "Live on socials",
     dotClass: "bg-primary",
     badgeClass: "border-primary/40 bg-primary/20 text-primary-foreground",
     Icon: IconCheck,

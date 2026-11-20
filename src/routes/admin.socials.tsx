@@ -1,13 +1,10 @@
 import {
   IconArrowLeft,
-  IconChartBar,
+  IconCalendarClock,
   IconDatabase,
-  IconDisc,
-  IconFlame,
-  IconLayoutKanban,
   IconLogout,
+  IconPlugConnected,
   IconPlus,
-  IconRocket,
   IconSparkles,
 } from "@tabler/icons-react";
 import {
@@ -17,16 +14,17 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
-import { CampaignsTab } from "#/containers/admin/socials/campaigns-tab";
 import { CatalogTab } from "#/containers/admin/socials/catalog-tab";
 import { IdeaVaultTab } from "#/containers/admin/socials/idea-vault-tab";
-import { OverviewTab } from "#/containers/admin/socials/overview-tab";
 import { PipelineTab } from "#/containers/admin/socials/pipeline-tab";
 import { PublishingCopilotSheet } from "#/containers/admin/socials/publishing-copilot-sheet";
+import {
+  PLATFORM_META,
+  PUBLISHABLE_PLATFORMS,
+} from "#/containers/admin/socials/social-constants";
 import type { PostStatus, SocialPostRecord } from "#/db/schema";
 import { signOut } from "#/lib/auth-client";
 import { cn } from "#/lib/utils";
@@ -43,20 +41,41 @@ export const Route = createFileRoute("/admin/socials")({
   component: SocialGrowthStudioPage,
 });
 
-type StudioTab = "overview" | "pipeline" | "vault" | "campaigns" | "catalog";
+type StudioTab = "schedule" | "templates" | "settings";
 
 function SocialGrowthStudioPage() {
   const data = Route.useLoaderData();
   const router = useRouter();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<StudioTab>("overview");
+  const [activeTab, setActiveTab] = useState<StudioTab>("schedule");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<SocialPostRecord | null>(null);
   const [defaultCopilotDate, setDefaultCopilotDate] = useState<string | undefined>(
     undefined,
   );
-  const [defaultCopilotStatus, setDefaultCopilotStatus] = useState<PostStatus>("idea");
+  const [defaultCopilotStatus, setDefaultCopilotStatus] = useState<PostStatus>("ready");
+
+  // Handle OAuth callback query parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const connected = params.get("connected");
+    const oauthErr = params.get("oauth_error");
+    const setup = params.get("setup");
+
+    if (tabParam === "settings" || connected || oauthErr || setup) {
+      setActiveTab("settings");
+    }
+    if (connected) {
+      toast.success(`Connected ${connected.replace("_", " ")} account!`);
+      window.history.replaceState({}, "", "/admin/socials");
+    } else if (oauthErr) {
+      toast.error(`OAuth error: ${oauthErr}`);
+      window.history.replaceState({}, "", "/admin/socials");
+    }
+  }, []);
 
   const refreshStudioData = async () => {
     await router.invalidate();
@@ -65,7 +84,7 @@ function SocialGrowthStudioPage() {
   const handleOpenPost = (
     post: SocialPostRecord | null,
     defaultDate?: string,
-    defaultStatus: PostStatus = "idea",
+    defaultStatus: PostStatus = "ready",
   ) => {
     setSelectedPost(post);
     setDefaultCopilotDate(defaultDate);
@@ -91,50 +110,36 @@ function SocialGrowthStudioPage() {
     await navigate({ to: "/admin/login" });
   };
 
-  const readyCount = data.posts.filter((p) => p.status === "ready").length;
   const activePipelineCount = data.posts.filter((p) => p.status !== "posted").length;
+  const templatesAndRolloutsCount = data.templates.length + data.campaigns.length;
 
   const navItems: Array<{
     id: StudioTab;
     label: string;
     shortLabel: string;
-    badge?: number;
-    Icon: typeof IconChartBar;
+    badge?: number | string;
+    Icon: typeof IconCalendarClock;
   }> = [
     {
-      id: "overview",
-      label: "Command & Overview",
-      shortLabel: "Overview",
-      badge: readyCount > 0 ? readyCount : undefined,
-      Icon: IconFlame,
-    },
-    {
-      id: "pipeline",
-      label: "Pipeline & Calendar",
-      shortLabel: "Pipeline",
+      id: "schedule",
+      label: "Schedule & Pipeline",
+      shortLabel: "Schedule",
       badge: activePipelineCount > 0 ? activePipelineCount : undefined,
-      Icon: IconLayoutKanban,
+      Icon: IconCalendarClock,
     },
     {
-      id: "vault",
-      label: "Idea Vault",
-      shortLabel: "Vault",
-      badge: data.templates.length > 0 ? data.templates.length : undefined,
+      id: "templates",
+      label: "Templates & Rollouts",
+      shortLabel: "Templates",
+      badge: templatesAndRolloutsCount > 0 ? templatesAndRolloutsCount : undefined,
       Icon: IconSparkles,
     },
     {
-      id: "campaigns",
-      label: "Release Rollouts",
-      shortLabel: "Rollouts",
-      badge: data.campaigns.length > 0 ? data.campaigns.length : undefined,
-      Icon: IconRocket,
-    },
-    {
-      id: "catalog",
-      label: "Catalog & Brand",
-      shortLabel: "Catalog",
-      badge: data.catalog.length > 0 ? data.catalog.length : undefined,
-      Icon: IconDisc,
+      id: "settings",
+      label: "Catalog & Accounts",
+      shortLabel: "Accounts",
+      badge: `${data.connections.length}/3`,
+      Icon: IconPlugConnected,
     },
   ];
 
@@ -153,22 +158,22 @@ function SocialGrowthStudioPage() {
             <div className="min-w-0">
               <p className="truncate text-base font-bold">{data.profile.stageName}</p>
               <p className="truncate text-xs text-muted-foreground">
-                Social Growth Studio
+                Social Publishing Studio
               </p>
             </div>
           </div>
 
-          {/* Primary New Post Button */}
+          {/* Primary Schedule Post CTA */}
           <Button
             size="lg"
             className="w-full justify-start gap-2.5 shadow-lg shadow-primary/20"
             onClick={() => handleOpenPost(null)}
           >
             <IconPlus className="size-4" />
-            New Social Post
+            Schedule Social Post
           </Button>
 
-          {/* Navigation */}
+          {/* 3-Tab Navigation */}
           <nav className="space-y-1">
             {navItems.map((item) => {
               const active = activeTab === item.id;
@@ -206,6 +211,53 @@ function SocialGrowthStudioPage() {
               );
             })}
           </nav>
+
+          {/* Connected Channels Mini Status */}
+          <div className="space-y-2 border-t border-border/60 pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                Direct Channels
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("settings")}
+                className="text-[0.68rem] text-primary hover:underline"
+              >
+                Configure
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {PUBLISHABLE_PLATFORMS.map((p) => {
+                const m = PLATFORM_META[p];
+                const conn = data.connections.find((c) => c.platform === p);
+                return (
+                  <div
+                    key={p}
+                    className="flex items-center justify-between text-xs text-muted-foreground"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <m.Icon className="size-3.5" />
+                      {m.shortLabel}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[0.68rem]",
+                        conn ? "text-emerald-300" : "text-muted-foreground/60",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          conn ? "bg-emerald-400" : "bg-slate-500",
+                        )}
+                      />
+                      {conn ? conn.accountName : "Unlinked"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar Footer */}
@@ -255,14 +307,12 @@ function SocialGrowthStudioPage() {
                 {navItems.find((n) => n.id === activeTab)?.label}
               </h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
-                {data.profile.stageName} • {data.profile.genre} • Goal:{" "}
-                {data.profile.weeklyPostTarget} posts/week
+                {data.profile.stageName} • Direct Pre-Programming (IG Reels, TikTok, YouTube Shorts)
               </p>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            {/* Mobile Quick Links to Public Site & Sign Out */}
             <Button
               size="icon-sm"
               variant="ghost"
@@ -285,68 +335,53 @@ function SocialGrowthStudioPage() {
 
             <Button size="sm" onClick={() => handleOpenPost(null)}>
               <IconPlus className="size-4" />
-              <span>New Post</span>
+              <span>Schedule Post</span>
             </Button>
           </div>
         </header>
 
         {/* Active Tab Workspace */}
         <div className="mx-auto w-full max-w-[1600px] flex-1 p-4 sm:p-6 lg:p-8">
-          {activeTab === "overview" ? (
-            <OverviewTab
+          {activeTab === "schedule" ? (
+            <PipelineTab
               profile={data.profile}
               posts={data.posts}
               catalog={data.catalog}
-              campaigns={data.campaigns}
-              templatesCount={data.templates.length}
-              onOpenPost={(p) => handleOpenPost(p)}
-              onNavigateTab={(t) => setActiveTab(t)}
-            />
-          ) : null}
-
-          {activeTab === "pipeline" ? (
-            <PipelineTab
-              posts={data.posts}
-              catalog={data.catalog}
+              connections={data.connections}
               onOpenPost={handleOpenPost}
+              onNavigateTab={(t) => setActiveTab(t)}
               onRefresh={refreshStudioData}
             />
           ) : null}
 
-          {activeTab === "vault" ? (
+          {activeTab === "templates" ? (
             <IdeaVaultTab
               templates={data.templates}
+              campaigns={data.campaigns}
               catalog={data.catalog}
               profile={data.profile}
               posts={data.posts}
               onRefresh={refreshStudioData}
               onOpenCreatedPost={handleOpenCreatedPostById}
-            />
-          ) : null}
-
-          {activeTab === "campaigns" ? (
-            <CampaignsTab
-              campaigns={data.campaigns}
-              catalog={data.catalog}
-              posts={data.posts}
               onOpenPost={(p) => handleOpenPost(p)}
-              onRefresh={refreshStudioData}
             />
           ) : null}
 
-          {activeTab === "catalog" ? (
+          {activeTab === "settings" ? (
             <CatalogTab
               profile={data.profile}
               catalog={data.catalog}
               hashtagPresets={data.hashtagPresets}
+              connections={data.connections}
+              oauthEnvConfigured={data.oauthEnvConfigured}
               onRefresh={refreshStudioData}
             />
           ) : null}
         </div>
       </div>
 
-      {/* Mobile Bottom Tab Bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border/80 bg-background/95 backdrop-blur-2xl lg:hidden">
+      {/* Mobile Bottom 3-Tab Bar */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-border/80 bg-background/95 backdrop-blur-2xl lg:hidden">
         {navItems.map((item) => {
           const active = activeTab === item.id;
           return (
@@ -355,7 +390,7 @@ function SocialGrowthStudioPage() {
               type="button"
               onClick={() => setActiveTab(item.id)}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-1 py-2.5 text-[0.68rem] font-medium transition-colors",
+                "relative flex flex-col items-center justify-center gap-1 py-2.5 text-[0.7rem] font-medium transition-colors",
                 active
                   ? "border-t-2 border-primary bg-primary/12 text-foreground font-semibold"
                   : "text-muted-foreground hover:text-foreground",
@@ -368,7 +403,7 @@ function SocialGrowthStudioPage() {
         })}
       </nav>
 
-      {/* Publishing Copilot Studio Drawer */}
+      {/* 3-Step Post Composer & Direct Scheduler Drawer */}
       <PublishingCopilotSheet
         open={copilotOpen}
         onOpenChange={setCopilotOpen}
@@ -379,7 +414,9 @@ function SocialGrowthStudioPage() {
         catalog={data.catalog}
         campaigns={data.campaigns}
         hashtagPresets={data.hashtagPresets}
+        connections={data.connections}
         onSaved={refreshStudioData}
+        onNavigateToAccounts={() => setActiveTab("settings")}
       />
     </div>
   );

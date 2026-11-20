@@ -6,7 +6,9 @@ import type {
   IdeaCategory,
   IdeaDifficulty,
   PerformanceRating,
+  PlatformDeliveries,
   PostStatus,
+  PublishablePlatform,
   SocialPlatform,
 } from "#/db/schema";
 
@@ -29,7 +31,7 @@ export const getStudioDashboardServerFn = createServerFn({ method: "GET" }).hand
 });
 
 // ============================================================================
-// 3. Producer Profile & Catalog Mutations
+// 3. Producer Profile, Connected Social Accounts & Catalog Mutations
 // ============================================================================
 
 const updateProfileSchema = z.object({
@@ -42,10 +44,64 @@ const updateProfileSchema = z.object({
 });
 
 export const updateArtistProfileServerFn = createServerFn({ method: "POST" })
-  .inputValidator(updateProfileSchema)
+  .validator(updateProfileSchema)
   .handler(async ({ data }) => {
     const { updateArtistProfileImpl } = await import("./socials.server");
     return updateArtistProfileImpl(data);
+  });
+
+const upsertSocialConnectionSchema = z.object({
+  platform: z.enum(["instagram_reels", "tiktok", "youtube_shorts"]),
+  accountName: z.string().min(1),
+  externalAccountId: z.string().min(1),
+  accessToken: z.string().min(1),
+  refreshToken: z.string().optional(),
+  metadata: z
+    .object({
+      tiktokPostMode: z.enum(["inbox", "direct"]).optional(),
+      tiktokPrivacyLevel: z
+        .enum(["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"])
+        .optional(),
+      youtubePrivacy: z.enum(["public", "unlisted", "private"]).optional(),
+      igPageId: z.string().optional(),
+    })
+    .optional(),
+});
+
+export const upsertSocialConnectionServerFn = createServerFn({ method: "POST" })
+  .validator(upsertSocialConnectionSchema)
+  .handler(async ({ data }) => {
+    const { upsertSocialConnectionImpl } = await import("./socials.server");
+    return upsertSocialConnectionImpl({
+      ...data,
+      platform: data.platform as PublishablePlatform,
+    });
+  });
+
+export const disconnectSocialAccountServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      platform: z.enum(["instagram_reels", "tiktok", "youtube_shorts"]),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { disconnectSocialAccountImpl } = await import("./socials.server");
+    return disconnectSocialAccountImpl({
+      platform: data.platform as PublishablePlatform,
+    });
+  });
+
+export const testSocialConnectionServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      platform: z.enum(["instagram_reels", "tiktok", "youtube_shorts"]),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { testSocialConnectionImpl } = await import("./socials.server");
+    return testSocialConnectionImpl({
+      platform: data.platform as PublishablePlatform,
+    });
   });
 
 export const syncLilSbdCatalogServerFn = createServerFn({ method: "POST" }).handler(async () => {
@@ -78,21 +134,21 @@ const upsertCatalogItemSchema = z.object({
 });
 
 export const upsertCatalogItemServerFn = createServerFn({ method: "POST" })
-  .inputValidator(upsertCatalogItemSchema)
+  .validator(upsertCatalogItemSchema)
   .handler(async ({ data }) => {
     const { upsertCatalogItemImpl } = await import("./socials.server");
     return upsertCatalogItemImpl(data);
   });
 
 export const deleteCatalogItemServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const { deleteCatalogItemImpl } = await import("./socials.server");
     return deleteCatalogItemImpl(data);
   });
 
 // ============================================================================
-// 4. Social Post CRUD & Kanban / Copilot Operations
+// 4. Social Post CRUD, Auto-Scheduling & Direct Publishing
 // ============================================================================
 
 const upsertSocialPostSchema = z.object({
@@ -120,6 +176,11 @@ const upsertSocialPostSchema = z.object({
     "release_promo",
   ]),
   scheduledFor: z.string().nullable().optional(),
+  videoUrl: z.string().nullable().optional(),
+  videoFileName: z.string().nullable().optional(),
+  videoSizeBytes: z.number().int().nullable().optional(),
+  autoPublish: z.boolean().default(false),
+  platformDeliveries: z.record(z.string(), z.any()).optional(),
   onScreenHookEn: z.string().default(""),
   onScreenHookFr: z.string().default(""),
   hookVariantsEn: z
@@ -177,7 +238,7 @@ const upsertSocialPostSchema = z.object({
 });
 
 export const upsertSocialPostServerFn = createServerFn({ method: "POST" })
-  .inputValidator(upsertSocialPostSchema)
+  .validator(upsertSocialPostSchema)
   .handler(async ({ data }) => {
     const { upsertSocialPostImpl } = await import("./socials.server");
     return upsertSocialPostImpl({
@@ -185,12 +246,30 @@ export const upsertSocialPostServerFn = createServerFn({ method: "POST" })
       status: data.status as PostStatus,
       platforms: data.platforms as SocialPlatform[],
       pillar: data.pillar as ContentPillar,
+      platformDeliveries: data.platformDeliveries as PlatformDeliveries | undefined,
       performanceRating: (data.performanceRating as PerformanceRating | null) ?? null,
     });
   });
 
+export const publishPostNowServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      postId: z.string(),
+      platforms: z
+        .array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"]))
+        .optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { publishPostNowImpl } = await import("./socials.server");
+    return publishPostNowImpl({
+      postId: data.postId,
+      platforms: data.platforms as PublishablePlatform[] | undefined,
+    });
+  });
+
 export const updatePostStatusServerFn = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       id: z.string(),
       status: z.enum(["idea", "filming", "editing", "ready", "posted"]),
@@ -206,7 +285,7 @@ export const updatePostStatusServerFn = createServerFn({ method: "POST" })
   });
 
 export const deleteSocialPostServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const { deleteSocialPostImpl } = await import("./socials.server");
     return deleteSocialPostImpl(data);
@@ -217,7 +296,7 @@ export const deleteSocialPostServerFn = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const instantiateIdeaTemplateServerFn = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       templateId: z.string(),
       catalogItemId: z.string().nullable().optional(),
@@ -231,7 +310,7 @@ export const instantiateIdeaTemplateServerFn = createServerFn({ method: "POST" }
   });
 
 export const createCustomIdeaTemplateServerFn = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       id: z.string().optional(),
       title: z.string().min(1),
@@ -268,8 +347,8 @@ export const createCustomIdeaTemplateServerFn = createServerFn({ method: "POST" 
       hookFormulaFr: z.string().default(""),
       captionTemplateEn: z.string().default(""),
       captionTemplateFr: z.string().default(""),
-      defaultCtaEn: z.string().default("Link in bio."),
-      defaultCtaFr: z.string().default("Lien en bio."),
+      defaultCtaEn: z.string().default(""),
+      defaultCtaFr: z.string().default(""),
       defaultShotList: z.array(z.string()).default([]),
       suggestedHashtags: z.array(z.string()).default([]),
       whyItWorks: z.string().default("Custom producer template."),
@@ -287,7 +366,7 @@ export const createCustomIdeaTemplateServerFn = createServerFn({ method: "POST" 
   });
 
 export const deleteCustomIdeaTemplateServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const { deleteCustomIdeaTemplateImpl } = await import("./socials.server");
     return deleteCustomIdeaTemplateImpl(data);
@@ -298,7 +377,7 @@ export const deleteCustomIdeaTemplateServerFn = createServerFn({ method: "POST" 
 // ============================================================================
 
 export const generateReleaseCampaignServerFn = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       catalogItemId: z.string().nullable().optional(),
       campaignType: z.enum(["single_release", "ep_rollout", "course_promo", "evergreen_growth"]),
@@ -316,7 +395,7 @@ export const generateReleaseCampaignServerFn = createServerFn({ method: "POST" }
   });
 
 export const deleteCampaignServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string(), deletePosts: z.boolean().default(false) }))
+  .validator(z.object({ id: z.string(), deletePosts: z.boolean().default(false) }))
   .handler(async ({ data }) => {
     const { deleteCampaignImpl } = await import("./socials.server");
     return deleteCampaignImpl(data);
@@ -327,7 +406,7 @@ export const deleteCampaignServerFn = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const createHashtagPresetServerFn = createServerFn({ method: "POST" })
-  .inputValidator(
+  .validator(
     z.object({
       name: z.string().min(1),
       platform: z.enum(["all", "instagram", "tiktok", "youtube_shorts"]).default("all"),
@@ -340,7 +419,7 @@ export const createHashtagPresetServerFn = createServerFn({ method: "POST" })
   });
 
 export const deleteHashtagPresetServerFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const { deleteHashtagPresetImpl } = await import("./socials.server");
     return deleteHashtagPresetImpl(data);

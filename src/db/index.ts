@@ -160,6 +160,21 @@ CREATE TABLE IF NOT EXISTS "idea_templates" (
   "created_at" timestamp DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS "social_connections" (
+  "id" text PRIMARY KEY NOT NULL,
+  "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+  "platform" text NOT NULL,
+  "account_name" text NOT NULL,
+  "external_account_id" text NOT NULL,
+  "access_token" text NOT NULL,
+  "refresh_token" text,
+  "token_expires_at" timestamp,
+  "scopes" text,
+  "metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS "social_posts" (
   "id" text PRIMARY KEY NOT NULL,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
@@ -173,6 +188,11 @@ CREATE TABLE IF NOT EXISTS "social_posts" (
   "scheduled_for" timestamp,
   "posted_at" timestamp,
   "sort_order" integer DEFAULT 0 NOT NULL,
+  "video_url" text,
+  "video_file_name" text,
+  "video_size_bytes" integer,
+  "auto_publish" boolean DEFAULT false NOT NULL,
+  "platform_deliveries" jsonb DEFAULT '{}'::jsonb NOT NULL,
   "on_screen_hook_en" text DEFAULT '' NOT NULL,
   "on_screen_hook_fr" text DEFAULT '' NOT NULL,
   "hook_variants_en" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -181,8 +201,8 @@ CREATE TABLE IF NOT EXISTS "social_posts" (
   "audio_timestamp" text DEFAULT '0:42 - 0:58 (Main Drop)',
   "caption_en" text DEFAULT '' NOT NULL,
   "caption_fr" text DEFAULT '' NOT NULL,
-  "cta_en" text DEFAULT 'Link in bio for the full track & free HDM course.' NOT NULL,
-  "cta_fr" text DEFAULT 'Lien en bio pour le son complet et le cours HDM gratuit.' NOT NULL,
+  "cta_en" text DEFAULT '' NOT NULL,
+  "cta_fr" text DEFAULT '' NOT NULL,
   "hashtags" jsonb DEFAULT '[]'::jsonb NOT NULL,
   "pre_flight_checklist" jsonb DEFAULT '{"highResExport":false,"coverFrameSelected":false,"audioSynced":false,"linkInBioUpdated":false}'::jsonb NOT NULL,
   "published_url" text,
@@ -196,6 +216,12 @@ CREATE TABLE IF NOT EXISTS "social_posts" (
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
+
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_url" text;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_file_name" text;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_size_bytes" integer;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "auto_publish" boolean DEFAULT false NOT NULL;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "platform_deliveries" jsonb DEFAULT '{}'::jsonb NOT NULL;
 
 CREATE TABLE IF NOT EXISTS "hashtag_presets" (
   "id" text PRIMARY KEY NOT NULL,

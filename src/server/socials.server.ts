@@ -1,4 +1,3 @@
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import { db, ensureSchemaInitialized, getDatabaseMode } from "#/db";
 import {
@@ -12,17 +11,29 @@ import {
   type IdeaDifficulty,
   ideaTemplates,
   type PerformanceRating,
+  type PlatformDeliveries,
   type PostStatus,
+  type PublishablePlatform,
   releaseCampaigns,
+  type SocialConnectionMetadata,
   type SocialPlatform,
+  socialConnections,
   socialPosts,
 } from "#/db/schema";
+import { auth, getConfiguredAuthInfo } from "#/lib/auth";
 import { CAMPAIGN_ROLLOUT_BLUEPRINTS } from "#/lib/social-blueprints";
 import { songs } from "#/lib/songs";
-import { auth, getConfiguredAuthInfo } from "#/lib/auth";
+import {
+  ensureSocialSchedulerRunning,
+  isPublishablePlatform,
+  publishSocialPostToPlatforms,
+  runDueScheduledPosts,
+  testSocialConnection,
+} from "./social-publisher.server";
 
 export async function requireSessionImpl() {
   await ensureSchemaInitialized();
+  const { getRequestHeaders } = await import("@tanstack/react-start/server");
   const headers = getRequestHeaders();
   const session = await auth.api.getSession({
     headers: new Headers(headers as Record<string, string>),
@@ -51,13 +62,7 @@ export async function ensureArtistProfile(userId: string, userName?: string) {
       primaryLanguage: "bilingual",
       defaultBioLink: "https://lilsbd.com",
       weeklyPostTarget: 5,
-      targetPlatforms: [
-        "instagram_reels",
-        "tiktok",
-        "youtube_shorts",
-        "instagram_carousel",
-        "instagram_story",
-      ],
+      targetPlatforms: ["instagram_reels", "tiktok", "youtube_shorts"],
     });
   }
 }
@@ -81,6 +86,7 @@ function interpolateTemplateText(
 
 export async function getAuthSessionImpl() {
   await ensureSchemaInitialized();
+  const { getRequestHeaders } = await import("@tanstack/react-start/server");
   const headers = getRequestHeaders();
   const session = await auth.api.getSession({
     headers: new Headers(headers as Record<string, string>),
@@ -97,36 +103,64 @@ export async function getStudioDashboardImpl() {
   const session = await requireSessionImpl();
   const userId = session.user.id;
 
+  ensureSocialSchedulerRunning();
   await ensureArtistProfile(userId, session.user.name);
+  await runDueScheduledPosts();
 
-  const [profileRows, catalog, campaigns, posts, templates, presets] = await Promise.all([
-    db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
-    db
-      .select()
-      .from(artistCatalogItems)
-      .where(eq(artistCatalogItems.userId, userId))
-      .orderBy(desc(artistCatalogItems.releaseDate)),
-    db
-      .select()
-      .from(releaseCampaigns)
-      .where(eq(releaseCampaigns.userId, userId))
-      .orderBy(desc(releaseCampaigns.releaseDate)),
-    db
-      .select()
-      .from(socialPosts)
-      .where(eq(socialPosts.userId, userId))
-      .orderBy(asc(socialPosts.sortOrder), desc(socialPosts.createdAt)),
-    db
-      .select()
-      .from(ideaTemplates)
-      .where(or(isNull(ideaTemplates.userId), eq(ideaTemplates.userId, userId)))
-      .orderBy(desc(ideaTemplates.createdAt)),
-    db
-      .select()
-      .from(hashtagPresets)
-      .where(or(isNull(hashtagPresets.userId), eq(hashtagPresets.userId, userId)))
-      .orderBy(asc(hashtagPresets.name)),
-  ]);
+  const [profileRows, catalog, campaigns, posts, templates, presets, rawConnections] =
+    await Promise.all([
+      db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
+      db
+        .select()
+        .from(artistCatalogItems)
+        .where(eq(artistCatalogItems.userId, userId))
+        .orderBy(desc(artistCatalogItems.releaseDate)),
+      db
+        .select()
+        .from(releaseCampaigns)
+        .where(eq(releaseCampaigns.userId, userId))
+        .orderBy(desc(releaseCampaigns.releaseDate)),
+      db
+        .select()
+        .from(socialPosts)
+        .where(eq(socialPosts.userId, userId))
+        .orderBy(asc(socialPosts.sortOrder), desc(socialPosts.createdAt)),
+      db
+        .select()
+        .from(ideaTemplates)
+        .where(or(isNull(ideaTemplates.userId), eq(ideaTemplates.userId, userId)))
+        .orderBy(desc(ideaTemplates.createdAt)),
+      db
+        .select()
+        .from(hashtagPresets)
+        .where(or(isNull(hashtagPresets.userId), eq(hashtagPresets.userId, userId)))
+        .orderBy(asc(hashtagPresets.name)),
+      db
+        .select()
+        .from(socialConnections)
+        .where(eq(socialConnections.userId, userId))
+        .orderBy(asc(socialConnections.platform)),
+    ]);
+
+  const connections = rawConnections.map((c) => ({
+    id: c.id,
+    platform: c.platform,
+    accountName: c.accountName,
+    externalAccountId: c.externalAccountId,
+    hasRefreshToken: Boolean(c.refreshToken),
+    tokenExpiresAt: c.tokenExpiresAt,
+    metadata: c.metadata,
+    updatedAt: c.updatedAt,
+  }));
+
+  const oauthEnvConfigured = {
+    instagram_reels: Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET),
+    tiktok: Boolean(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET),
+    youtube_shorts: Boolean(
+      (process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID) &&
+        (process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET),
+    ),
+  };
 
   return {
     user: session.user,
@@ -136,6 +170,8 @@ export async function getStudioDashboardImpl() {
     posts,
     templates,
     hashtagPresets: presets,
+    connections,
+    oauthEnvConfigured,
     databaseMode: getDatabaseMode(),
   };
 }
@@ -165,6 +201,215 @@ export async function updateArtistProfileImpl(data: {
     .where(eq(artistProfiles.userId, userId));
 
   return { ok: true };
+}
+
+export async function upsertSocialConnectionImpl(data: {
+  platform: PublishablePlatform;
+  accountName: string;
+  externalAccountId: string;
+  accessToken: string;
+  refreshToken?: string;
+  metadata?: SocialConnectionMetadata;
+}) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const existing = await db
+    .select()
+    .from(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.userId, userId),
+        eq(socialConnections.platform, data.platform),
+      ),
+    )
+    .limit(1);
+
+  let tokenToSave =
+    data.accessToken === "__KEEP_EXISTING__" && existing[0]
+      ? existing[0].accessToken
+      : data.accessToken.trim();
+
+  const refreshToSave =
+    data.refreshToken === "__KEEP_EXISTING__" && existing[0]
+      ? existing[0].refreshToken
+      : data.refreshToken?.trim() || existing[0]?.refreshToken || null;
+
+  let resolvedAccountId = data.externalAccountId.trim();
+  let resolvedAccountName = data.accountName.trim();
+  let tokenExpiresAt: Date | null = existing[0]?.tokenExpiresAt ?? null;
+
+  // Dev-mode ergonomics: auto-exchange short-lived Meta token & auto-discover Account ID if "auto"
+  if (data.platform === "instagram_reels" && data.accessToken !== "__KEEP_EXISTING__") {
+    const appId = process.env.META_APP_ID?.trim() || process.env.INSTAGRAM_APP_ID?.trim();
+    const appSecret =
+      process.env.META_APP_SECRET?.trim() || process.env.INSTAGRAM_APP_SECRET?.trim();
+    if (appId && appSecret) {
+      try {
+        const longUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+        longUrl.searchParams.set("grant_type", "fb_exchange_token");
+        longUrl.searchParams.set("client_id", appId);
+        longUrl.searchParams.set("client_secret", appSecret);
+        longUrl.searchParams.set("fb_exchange_token", tokenToSave);
+        const longRes = await fetch(longUrl);
+        const longJson = (await longRes.json()) as {
+          access_token?: string;
+          expires_in?: number;
+        };
+        if (longRes.ok && longJson.access_token) {
+          tokenToSave = longJson.access_token;
+          if (longJson.expires_in) {
+            tokenExpiresAt = new Date(Date.now() + longJson.expires_in * 1000);
+          }
+        }
+      } catch {
+        // Keep original token if exchange fails
+      }
+    }
+
+    if (!resolvedAccountId || resolvedAccountId.toLowerCase() === "auto") {
+      const pagesUrl = new URL("https://graph.facebook.com/v21.0/me/accounts");
+      pagesUrl.searchParams.set(
+        "fields",
+        "id,name,instagram_business_account{id,username,name}",
+      );
+      pagesUrl.searchParams.set("access_token", tokenToSave);
+      const pagesRes = await fetch(pagesUrl);
+      const pagesJson = (await pagesRes.json()) as {
+        data?: Array<{
+          instagram_business_account?: {
+            id: string;
+            username?: string;
+            name?: string;
+          };
+        }>;
+        error?: { message?: string };
+      };
+      const igBiz = pagesJson.data?.find((p) => p.instagram_business_account)
+        ?.instagram_business_account;
+      if (!igBiz?.id) {
+        throw new Error(
+          pagesJson.error?.message ||
+            "Could not auto-detect an Instagram Creator/Business account linked to your Facebook Page. Ensure instagram_basic + pages_show_list scopes are checked, or enter your IG Business Account ID manually.",
+        );
+      }
+      resolvedAccountId = igBiz.id;
+      if (igBiz.username) {
+        resolvedAccountName = `@${igBiz.username}`;
+      }
+    }
+  } else if (
+    data.platform === "tiktok" &&
+    (!resolvedAccountId || resolvedAccountId.toLowerCase() === "auto")
+  ) {
+    try {
+      const userRes = await fetch(
+        "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name",
+        { headers: { Authorization: `Bearer ${tokenToSave}` } },
+      );
+      const userJson = (await userRes.json()) as {
+        data?: { user?: { open_id?: string; display_name?: string } };
+      };
+      resolvedAccountId = userJson.data?.user?.open_id || "tiktok-user";
+      if (userJson.data?.user?.display_name) {
+        resolvedAccountName = userJson.data.user.display_name;
+      }
+    } catch {
+      resolvedAccountId = "tiktok-user";
+    }
+  } else if (
+    data.platform === "youtube_shorts" &&
+    (!resolvedAccountId ||
+      resolvedAccountId.toLowerCase() === "auto" ||
+      resolvedAccountId.toLowerCase() === "mine")
+  ) {
+    try {
+      const chRes = await fetch(
+        "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+        { headers: { Authorization: `Bearer ${tokenToSave}` } },
+      );
+      const chJson = (await chRes.json()) as {
+        items?: Array<{ id?: string; snippet?: { title?: string } }>;
+      };
+      const ch = chJson.items?.[0];
+      resolvedAccountId = ch?.id || "mine";
+      if (ch?.snippet?.title) {
+        resolvedAccountName = ch.snippet.title;
+      }
+    } catch {
+      resolvedAccountId = "mine";
+    }
+  }
+
+  await db
+    .delete(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.userId, userId),
+        eq(socialConnections.platform, data.platform),
+      ),
+    );
+
+  const id = `conn-${userId}-${data.platform}`;
+  await db.insert(socialConnections).values({
+    id,
+    userId,
+    platform: data.platform,
+    accountName: resolvedAccountName || data.platform,
+    externalAccountId: resolvedAccountId || "auto",
+    accessToken: tokenToSave,
+    refreshToken: refreshToSave,
+    tokenExpiresAt,
+    metadata: data.metadata ?? existing[0]?.metadata ?? {},
+    updatedAt: new Date(),
+  });
+
+  return { id };
+}
+
+export async function disconnectSocialAccountImpl(data: { platform: PublishablePlatform }) {
+  const session = await requireSessionImpl();
+  await db
+    .delete(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.userId, session.user.id),
+        eq(socialConnections.platform, data.platform),
+      ),
+    );
+  return { ok: true };
+}
+
+export async function testSocialConnectionImpl(data: { platform: PublishablePlatform }) {
+  const session = await requireSessionImpl();
+  const rows = await db
+    .select()
+    .from(socialConnections)
+    .where(
+      and(
+        eq(socialConnections.userId, session.user.id),
+        eq(socialConnections.platform, data.platform),
+      ),
+    )
+    .limit(1);
+
+  const conn = rows[0];
+  if (!conn) {
+    return {
+      ok: false,
+      accountLabel: "",
+      message: "Account is not connected yet.",
+    };
+  }
+
+  const res = await testSocialConnection(conn);
+  if (res.ok && res.accountLabel && res.accountLabel !== conn.accountName) {
+    await db
+      .update(socialConnections)
+      .set({ accountName: res.accountLabel, updatedAt: new Date() })
+      .where(eq(socialConnections.id, conn.id));
+  }
+  return res;
 }
 
 export async function syncLilSbdCatalogImpl() {
@@ -303,6 +548,11 @@ export async function upsertSocialPostImpl(data: {
   platforms: SocialPlatform[];
   pillar: ContentPillar;
   scheduledFor?: string | null;
+  videoUrl?: string | null;
+  videoFileName?: string | null;
+  videoSizeBytes?: number | null;
+  autoPublish?: boolean;
+  platformDeliveries?: PlatformDeliveries;
   onScreenHookEn: string;
   onScreenHookFr: string;
   hookVariantsEn?: {
@@ -345,8 +595,36 @@ export async function upsertSocialPostImpl(data: {
   const userId = session.user.id;
   const scheduledDate = data.scheduledFor ? new Date(data.scheduledFor) : null;
   const postedDate = data.status === "posted" ? new Date() : null;
+  const autoPublish = Boolean(data.autoPublish);
+
+  // Build updated platform deliveries state when autoPublish is toggled
+  const buildDeliveries = (existing: PlatformDeliveries = {}): PlatformDeliveries => {
+    const next: PlatformDeliveries = { ...existing, ...(data.platformDeliveries ?? {}) };
+    if (autoPublish) {
+      for (const p of data.platforms) {
+        if (isPublishablePlatform(p)) {
+          const cur = next[p]?.status;
+          if (!cur || cur === "idle") {
+            next[p] = {
+              status: "scheduled",
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        }
+      }
+    }
+    return next;
+  };
 
   if (data.id) {
+    const existingRows = await db
+      .select({ platformDeliveries: socialPosts.platformDeliveries })
+      .from(socialPosts)
+      .where(and(eq(socialPosts.id, data.id), eq(socialPosts.userId, userId)))
+      .limit(1);
+
+    const mergedDeliveries = buildDeliveries(existingRows[0]?.platformDeliveries ?? {});
+
     await db
       .update(socialPosts)
       .set({
@@ -359,6 +637,11 @@ export async function upsertSocialPostImpl(data: {
         pillar: data.pillar,
         scheduledFor: scheduledDate,
         ...(data.status === "posted" ? { postedAt: postedDate } : {}),
+        videoUrl: data.videoUrl ?? null,
+        videoFileName: data.videoFileName ?? null,
+        videoSizeBytes: data.videoSizeBytes ?? null,
+        autoPublish,
+        platformDeliveries: mergedDeliveries,
         onScreenHookEn: data.onScreenHookEn,
         onScreenHookFr: data.onScreenHookFr,
         ...(data.hookVariantsEn ? { hookVariantsEn: data.hookVariantsEn } : {}),
@@ -400,6 +683,11 @@ export async function upsertSocialPostImpl(data: {
     scheduledFor: scheduledDate ?? new Date(),
     postedAt: postedDate,
     sortOrder: 0,
+    videoUrl: data.videoUrl ?? null,
+    videoFileName: data.videoFileName ?? null,
+    videoSizeBytes: data.videoSizeBytes ?? null,
+    autoPublish,
+    platformDeliveries: buildDeliveries({}),
     onScreenHookEn: data.onScreenHookEn,
     onScreenHookFr: data.onScreenHookFr,
     hookVariantsEn: data.hookVariantsEn ?? {},
@@ -428,6 +716,14 @@ export async function upsertSocialPostImpl(data: {
   });
 
   return { id };
+}
+
+export async function publishPostNowImpl(data: {
+  postId: string;
+  platforms?: PublishablePlatform[];
+}) {
+  const session = await requireSessionImpl();
+  return publishSocialPostToPlatforms(data.postId, session.user.id, data.platforms);
 }
 
 export async function updatePostStatusImpl(data: {
@@ -510,6 +806,12 @@ export async function instantiateIdeaTemplateImpl(data: {
 
   const postId = `post-${userId}-${Date.now()}`;
   const postTitle = catalogItem ? `${catalogItem.title} — ${tpl.title}` : tpl.title;
+  const rawCaption = interpolateTemplateText(tpl.captionTemplateEn, vars);
+  const rawCta = interpolateTemplateText(tpl.defaultCtaEn, vars);
+  const combinedCaption =
+    rawCta && !rawCaption.includes(rawCta)
+      ? `${rawCaption}\n\n${rawCta}`.trim()
+      : rawCaption;
 
   await db.insert(socialPosts).values({
     id: postId,
@@ -518,7 +820,7 @@ export async function instantiateIdeaTemplateImpl(data: {
     templateId: tpl.id,
     title: postTitle,
     status: data.status as PostStatus,
-    platforms: tpl.recommendedPlatforms,
+    platforms: tpl.recommendedPlatforms.filter(isPublishablePlatform),
     pillar: tpl.pillar,
     scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : new Date(),
     sortOrder: 0,
@@ -532,10 +834,10 @@ export async function instantiateIdeaTemplateImpl(data: {
       completed: false,
     })),
     audioTimestamp: "0:42 - 0:58 (Main Drop)",
-    captionEn: interpolateTemplateText(tpl.captionTemplateEn, vars),
-    captionFr: interpolateTemplateText(tpl.captionTemplateFr, vars),
-    ctaEn: interpolateTemplateText(tpl.defaultCtaEn, vars),
-    ctaFr: interpolateTemplateText(tpl.defaultCtaFr, vars),
+    captionEn: combinedCaption,
+    captionFr: combinedCaption,
+    ctaEn: "",
+    ctaFr: "",
     hashtags: tpl.suggestedHashtags,
     preFlightChecklist: {
       highResExport: false,
@@ -705,6 +1007,12 @@ export async function generateReleaseCampaignImpl(data: {
       `${vars.trackTitle} — ${step.titleSuffix}`,
       vars,
     );
+    const rawCap = interpolateTemplateText(step.captionEn, vars);
+    const rawCta = interpolateTemplateText(step.ctaEn, vars);
+    const combinedCaption =
+      rawCta && !rawCap.includes(rawCta) ? `${rawCap}\n\n${rawCta}`.trim() : rawCap;
+
+    const filteredPlatforms = step.platforms.filter(isPublishablePlatform);
 
     await db.insert(socialPosts).values({
       id: `post-${campaignId}-${i + 1}`,
@@ -713,7 +1021,10 @@ export async function generateReleaseCampaignImpl(data: {
       catalogItemId: catalogItem?.id ?? null,
       title: stepTitle,
       status: i === 0 ? "filming" : "idea",
-      platforms: step.platforms,
+      platforms:
+        filteredPlatforms.length > 0
+          ? filteredPlatforms
+          : ["instagram_reels", "tiktok", "youtube_shorts"],
       pillar: step.pillar,
       scheduledFor,
       sortOrder: i + 1,
@@ -735,10 +1046,10 @@ export async function generateReleaseCampaignImpl(data: {
         completed: false,
       })),
       audioTimestamp: step.audioTimestamp,
-      captionEn: interpolateTemplateText(step.captionEn, vars),
-      captionFr: interpolateTemplateText(step.captionFr, vars),
-      ctaEn: interpolateTemplateText(step.ctaEn, vars),
-      ctaFr: interpolateTemplateText(step.ctaFr, vars),
+      captionEn: combinedCaption,
+      captionFr: combinedCaption,
+      ctaEn: "",
+      ctaFr: "",
       hashtags: [
         "#uptempohardcore",
         "#zaagkick",

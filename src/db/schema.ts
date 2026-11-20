@@ -127,9 +127,53 @@ export interface HookVariants {
   showcase?: string;
 }
 
+export type PublishablePlatform = "instagram_reels" | "tiktok" | "youtube_shorts";
+
+export type DeliveryStatus =
+  | "idle"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "inbox_ready"
+  | "failed";
+
+export interface PlatformDeliveryState {
+  status: DeliveryStatus;
+  externalPostId?: string;
+  externalUrl?: string;
+  error?: string;
+  updatedAt?: string;
+}
+
+export type PlatformDeliveries = Partial<Record<SocialPlatform, PlatformDeliveryState>>;
+
+export interface SocialConnectionMetadata {
+  tiktokPostMode?: "inbox" | "direct";
+  tiktokPrivacyLevel?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "SELF_ONLY";
+  youtubePrivacy?: "public" | "unlisted" | "private";
+  igPageId?: string;
+}
+
 // ============================================================================
-// 3. Producer Profile & Multi-Tenant Catalog
+// 3. Producer Profile, Connected Accounts & Multi-Tenant Catalog
 // ============================================================================
+
+export const socialConnections = pgTable("social_connections", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  platform: text("platform").$type<PublishablePlatform>().notNull(),
+  accountName: text("account_name").notNull(),
+  externalAccountId: text("external_account_id").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  scopes: text("scopes"),
+  metadata: jsonb("metadata").$type<SocialConnectionMetadata>().notNull().default({}),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 export const artistProfiles = pgTable("artist_profiles", {
   id: text("id").primaryKey(),
@@ -146,7 +190,7 @@ export const artistProfiles = pgTable("artist_profiles", {
   targetPlatforms: jsonb("target_platforms")
     .$type<SocialPlatform[]>()
     .notNull()
-    .default(["instagram_reels", "tiktok", "youtube_shorts", "instagram_carousel", "instagram_story"]),
+    .default(["instagram_reels", "tiktok", "youtube_shorts"]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -228,7 +272,7 @@ export const ideaTemplates = pgTable("idea_templates", {
 });
 
 // ============================================================================
-// 5. Social Posts (Kanban Pipeline, Calendar, Publishing Copilot & Analytics)
+// 5. Social Posts (Pipeline, Calendar, Direct Auto-Publish & Analytics)
 // ============================================================================
 
 export const socialPosts = pgTable("social_posts", {
@@ -256,6 +300,16 @@ export const socialPosts = pgTable("social_posts", {
   postedAt: timestamp("posted_at"),
   sortOrder: integer("sort_order").notNull().default(0),
 
+  // Video Asset & Direct Scheduling
+  videoUrl: text("video_url"),
+  videoFileName: text("video_file_name"),
+  videoSizeBytes: integer("video_size_bytes"),
+  autoPublish: boolean("auto_publish").notNull().default(false),
+  platformDeliveries: jsonb("platform_deliveries")
+    .$type<PlatformDeliveries>()
+    .notNull()
+    .default({}),
+
   // Creative & Filming Execution
   onScreenHookEn: text("on_screen_hook_en").notNull().default(""),
   onScreenHookFr: text("on_screen_hook_fr").notNull().default(""),
@@ -264,11 +318,11 @@ export const socialPosts = pgTable("social_posts", {
   shotList: jsonb("shot_list").$type<ShotListItem[]>().notNull().default([]),
   audioTimestamp: text("audio_timestamp").default("0:42 - 0:58 (Main Drop)"),
 
-  // Publishing Copilot Copy
+  // Publishing Copy
   captionEn: text("caption_en").notNull().default(""),
   captionFr: text("caption_fr").notNull().default(""),
-  ctaEn: text("cta_en").notNull().default("Link in bio for the full track & free HDM course."),
-  ctaFr: text("cta_fr").notNull().default("Lien en bio pour le son complet et le cours HDM gratuit."),
+  ctaEn: text("cta_en").notNull().default(""),
+  ctaFr: text("cta_fr").notNull().default(""),
   hashtags: jsonb("hashtags").$type<string[]>().notNull().default([]),
   preFlightChecklist: jsonb("pre_flight_checklist")
     .$type<PreFlightChecklist>()
@@ -312,8 +366,10 @@ export const hashtagPresets = pgTable("hashtag_presets", {
 });
 
 export type ArtistProfileRecord = typeof artistProfiles.$inferSelect;
+export type SocialConnectionRecord = typeof socialConnections.$inferSelect;
 export type ArtistCatalogItemRecord = typeof artistCatalogItems.$inferSelect;
 export type ReleaseCampaignRecord = typeof releaseCampaigns.$inferSelect;
 export type IdeaTemplateRecord = typeof ideaTemplates.$inferSelect;
 export type SocialPostRecord = typeof socialPosts.$inferSelect;
 export type HashtagPresetRecord = typeof hashtagPresets.$inferSelect;
+
