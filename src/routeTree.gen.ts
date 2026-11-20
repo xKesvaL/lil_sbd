@@ -19,6 +19,9 @@ import { Route as AdminSocialsRouteImport } from './routes/admin.socials'
 import { Route as PresskitIndexRouteImport } from './routes/presskit.index'
 import { Route as PresskitDownloadRouteImport } from './routes/presskit.download'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiSocialsUploadRouteImport } from './routes/api/socials/upload'
+import { Route as ApiSocialsMediaFilenameRouteImport } from './routes/api/socials/media.$filename'
+import { Route as ApiSocialsOauthPlatformRouteImport } from './routes/api/socials/oauth.$platform'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,6 +73,21 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSocialsUploadRoute = ApiSocialsUploadRouteImport.update({
+  id: '/api/socials/upload',
+  path: '/api/socials/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSocialsMediaFilenameRoute = ApiSocialsMediaFilenameRouteImport.update({
+  id: '/api/socials/media/$filename',
+  path: '/api/socials/media/$filename',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSocialsOauthPlatformRoute = ApiSocialsOauthPlatformRouteImport.update({
+  id: '/api/socials/oauth/$platform',
+  path: '/api/socials/oauth/$platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -82,6 +100,9 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/presskit/': typeof PresskitIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/api/socials/media/$filename': typeof ApiSocialsMediaFilenameRoute
+  '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -92,6 +113,9 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/presskit': typeof PresskitIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/api/socials/media/$filename': typeof ApiSocialsMediaFilenameRoute
+  '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -105,6 +129,9 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/presskit/': typeof PresskitIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/api/socials/media/$filename': typeof ApiSocialsMediaFilenameRoute
+  '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -119,6 +146,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/presskit/'
     | '/api/auth/$'
+    | '/api/socials/upload'
+    | '/api/socials/media/$filename'
+    | '/api/socials/oauth/$platform'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -129,6 +159,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/presskit'
     | '/api/auth/$'
+    | '/api/socials/upload'
+    | '/api/socials/media/$filename'
+    | '/api/socials/oauth/$platform'
   id:
     | '__root__'
     | '/'
@@ -141,6 +174,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/presskit/'
     | '/api/auth/$'
+    | '/api/socials/upload'
+    | '/api/socials/media/$filename'
+    | '/api/socials/oauth/$platform'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -149,6 +185,9 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   PresskitRoute: typeof PresskitRouteWithChildren
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiSocialsUploadRoute: typeof ApiSocialsUploadRoute
+  ApiSocialsMediaFilenameRoute: typeof ApiSocialsMediaFilenameRoute
+  ApiSocialsOauthPlatformRoute: typeof ApiSocialsOauthPlatformRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -223,6 +262,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/socials/upload': {
+      id: '/api/socials/upload'
+      path: '/api/socials/upload'
+      fullPath: '/api/socials/upload'
+      preLoaderRoute: typeof ApiSocialsUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/socials/media/$filename': {
+      id: '/api/socials/media/$filename'
+      path: '/api/socials/media/$filename'
+      fullPath: '/api/socials/media/$filename'
+      preLoaderRoute: typeof ApiSocialsMediaFilenameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/socials/oauth/$platform': {
+      id: '/api/socials/oauth/$platform'
+      path: '/api/socials/oauth/$platform'
+      fullPath: '/api/socials/oauth/$platform'
+      preLoaderRoute: typeof ApiSocialsOauthPlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -260,6 +320,9 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   PresskitRoute: PresskitRouteWithChildren,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSocialsUploadRoute: ApiSocialsUploadRoute,
+  ApiSocialsMediaFilenameRoute: ApiSocialsMediaFilenameRoute,
+  ApiSocialsOauthPlatformRoute: ApiSocialsOauthPlatformRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

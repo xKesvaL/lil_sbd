@@ -36,7 +36,7 @@ export async function requireSessionImpl() {
   const { getRequestHeaders } = await import("@tanstack/react-start/server");
   const headers = getRequestHeaders();
   const session = await auth.api.getSession({
-    headers: new Headers(headers as Record<string, string>),
+    headers: new Headers(headers as unknown as HeadersInit),
   });
   if (!session?.user) {
     throw new Error("UNAUTHORIZED");
@@ -89,7 +89,7 @@ export async function getAuthSessionImpl() {
   const { getRequestHeaders } = await import("@tanstack/react-start/server");
   const headers = getRequestHeaders();
   const session = await auth.api.getSession({
-    headers: new Headers(headers as Record<string, string>),
+    headers: new Headers(headers as unknown as HeadersInit),
   });
 
   return {
@@ -440,10 +440,10 @@ export async function syncLilSbdCatalogImpl() {
         genreTag: "Uptempo Hardcore",
         description: `${song.title} by ${song.artists.join(" & ")}${song.album ? ` (${song.album})` : ""}`,
         streamingLinks: {
-          spotify: song.links.spotify,
+          spotify: "spotify" in song.links ? song.links.spotify : undefined,
           soundcloud: song.links.soundcloud,
-          youtubeMusic: song.links.youtubeMusic,
-          appleMusic: song.links.appleMusic,
+          youtubeMusic: "youtubeMusic" in song.links ? song.links.youtubeMusic : undefined,
+          appleMusic: "appleMusic" in song.links ? song.links.appleMusic : undefined,
         },
         hookTimestamps: [],
       });
@@ -796,10 +796,10 @@ export async function instantiateIdeaTemplateImpl(data: {
     genre: catalogItem?.genreTag ?? profile?.genre ?? "Uptempo Hardcore",
   };
 
-  const interpolateRecord = (rec: Record<string, string | undefined>) => {
+  const interpolateRecord = (rec: { [key: string]: string | undefined } | object) => {
     const result: Record<string, string> = {};
     for (const [k, v] of Object.entries(rec)) {
-      if (v) result[k] = interpolateTemplateText(v, vars);
+      if (typeof v === "string" && v) result[k] = interpolateTemplateText(v, vars);
     }
     return result;
   };
