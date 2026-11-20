@@ -1,4 +1,12 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  doublePrecision,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 // ============================================================================
 // 1. Better Auth Core Tables (Multi-User / Multi-Producer Ready)
@@ -154,6 +162,73 @@ export interface SocialConnectionMetadata {
   igPageId?: string;
 }
 
+export type EditMode = "single_take" | "multi_take" | "manual";
+
+export type ReviewStatus = "processing" | "needs_review" | "approved" | "published" | "failed";
+
+export type EditPreset = "subtle" | "punchy" | "hard";
+
+export type BackgroundJobType =
+  | "analyze_track"
+  | "sync_and_direct"
+  | "render_video"
+  | "publish_post"
+  | "cleanup_media";
+
+export type BackgroundJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonRecord = { [key: string]: JsonValue };
+
+export interface TrackDropSection {
+  label: string;
+  startSec: number;
+  endSec: number;
+  dropImpactSec: number;
+  peakEnergy: number;
+}
+
+export interface TrackAudioAnalysis {
+  version: number;
+  durationSec: number;
+  sampleRate: number;
+  bpm: number;
+  beatConfidence: number;
+  firstBeatSec: number;
+  beatsSec: number[];
+  barsSec: number[];
+  drops: TrackDropSection[];
+  energyEnvelope: number[];
+  envelopeStepSec: number;
+  analyzedAt: string;
+}
+
+export interface EditRecipeSegment {
+  clipId: string;
+  sourceStartSec: number;
+  sourceEndSec: number;
+  masterStartSec: number;
+}
+
+export interface EditRecipeFxEvent {
+  timeSec: number;
+  type: "punch_zoom" | "micro_shake" | "drop_flash";
+  intensity: number;
+}
+
+export interface PostEditRecipe {
+  mode: EditMode;
+  preset: EditPreset;
+  masterStartSec: number;
+  masterEndSec: number;
+  audioHeadroomDb: number;
+  burnHookOverlay: boolean;
+  hookOverlayText?: string;
+  segments: EditRecipeSegment[];
+  fxEvents: EditRecipeFxEvent[];
+}
+
 // ============================================================================
 // 3. Producer Profile, Connected Accounts & Multi-Tenant Catalog
 // ============================================================================
@@ -191,6 +266,18 @@ export const artistProfiles = pgTable("artist_profiles", {
     .$type<SocialPlatform[]>()
     .notNull()
     .default(["instagram_reels", "tiktok", "youtube_shorts"]),
+  // Autopilot Cadence, Audio/Edit Defaults & Storage Retention
+  timezone: text("timezone").notNull().default("Europe/Paris"),
+  cadenceDays: jsonb("cadence_days").$type<number[]>().notNull().default([1, 3, 5, 0]),
+  cadenceTime: text("cadence_time").notNull().default("18:00"),
+  avoidConsecutiveTrack: boolean("avoid_consecutive_track").notNull().default(true),
+  defaultEditPreset: text("default_edit_preset").$type<EditPreset>().notNull().default("punchy"),
+  burnHookOverlay: boolean("burn_hook_overlay").notNull().default(false),
+  audioHeadroomDb: doublePrecision("audio_headroom_db").notNull().default(-1.5),
+  rawRetentionDays: integer("raw_retention_days").notNull().default(7),
+  renderedRetentionDays: integer("rendered_retention_days").notNull().default(90),
+  storageCapGb: integer("storage_cap_gb").notNull().default(8),
+  geminiModel: text("gemini_model").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -207,6 +294,8 @@ export const artistCatalogItems = pgTable("artist_catalog_items", {
   releaseDate: timestamp("release_date").notNull(),
   artworkUrl: text("artwork_url"),
   audioPreviewUrl: text("audio_preview_url"),
+  masterAudioPath: text("master_audio_path"),
+  audioAnalysis: jsonb("audio_analysis").$type<TrackAudioAnalysis | null>(),
   bpm: integer("bpm").default(200),
   keySignature: text("key_signature").default("F Minor"),
   genreTag: text("genre_tag").default("Uptempo Hardcore"),
@@ -304,6 +393,11 @@ export const socialPosts = pgTable("social_posts", {
   videoUrl: text("video_url"),
   videoFileName: text("video_file_name"),
   videoSizeBytes: integer("video_size_bytes"),
+  thumbnailUrl: text("thumbnail_url"),
+  editMode: text("edit_mode").$type<EditMode>().notNull().default("manual"),
+  reviewStatus: text("review_status").$type<ReviewStatus>().notNull().default("approved"),
+  editRecipe: jsonb("edit_recipe").$type<PostEditRecipe | null>(),
+  rawCleanedAt: timestamp("raw_cleaned_at"),
   autoPublish: boolean("auto_publish").notNull().default(false),
   platformDeliveries: jsonb("platform_deliveries")
     .$type<PlatformDeliveries>()
@@ -365,6 +459,57 @@ export const hashtagPresets = pgTable("hashtag_presets", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// ============================================================================
+// 7. Raw Uploaded Clips & Persistent Background Job Queue
+// ============================================================================
+
+export const socialRawClips = pgTable("social_raw_clips", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  postId: text("post_id")
+    .notNull()
+    .references(() => socialPosts.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(),
+  fileName: text("file_name").notNull(),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  durationSec: doublePrecision("duration_sec"),
+  width: integer("width"),
+  height: integer("height"),
+  fps: doublePrecision("fps"),
+  detectedOffsetSec: doublePrecision("detected_offset_sec"),
+  syncConfidence: doublePrecision("sync_confidence"),
+  orderIndex: integer("order_index").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const backgroundJobs = pgTable("background_jobs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  postId: text("post_id").references(() => socialPosts.id, { onDelete: "cascade" }),
+  catalogItemId: text("catalog_item_id").references(() => artistCatalogItems.id, {
+    onDelete: "cascade",
+  }),
+  jobType: text("job_type").$type<BackgroundJobType>().notNull(),
+  status: text("status").$type<BackgroundJobStatus>().notNull().default("queued"),
+  progress: integer("progress").notNull().default(0),
+  stageLabel: text("stage_label").notNull().default("Queued"),
+  payload: jsonb("payload").$type<JsonRecord>().notNull().default({}),
+  result: jsonb("result").$type<JsonRecord | null>(),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  runAfter: timestamp("run_after").notNull().defaultNow(),
+  lockedAt: timestamp("locked_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  error: text("error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export type ArtistProfileRecord = typeof artistProfiles.$inferSelect;
 export type SocialConnectionRecord = typeof socialConnections.$inferSelect;
 export type ArtistCatalogItemRecord = typeof artistCatalogItems.$inferSelect;
@@ -372,4 +517,6 @@ export type ReleaseCampaignRecord = typeof releaseCampaigns.$inferSelect;
 export type IdeaTemplateRecord = typeof ideaTemplates.$inferSelect;
 export type SocialPostRecord = typeof socialPosts.$inferSelect;
 export type HashtagPresetRecord = typeof hashtagPresets.$inferSelect;
+export type SocialRawClipRecord = typeof socialRawClips.$inferSelect;
+export type BackgroundJobRecord = typeof backgroundJobs.$inferSelect;
 

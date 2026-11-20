@@ -1,5 +1,3 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
 import { and, eq, lte, ne } from "drizzle-orm";
 import { db, ensureSchemaInitialized } from "#/db";
 import {
@@ -12,12 +10,12 @@ import {
   socialConnections,
   socialPosts,
 } from "#/db/schema";
+import { getLegacySocialsDir, readMediaBuffer } from "./media-storage.server";
 
-export const SOCIAL_UPLOADS_DIR = join(process.cwd(), ".data", "uploads", "socials");
+export const SOCIAL_UPLOADS_DIR = getLegacySocialsDir();
 
 export function ensureUploadsDir(): string {
-  mkdirSync(SOCIAL_UPLOADS_DIR, { recursive: true });
-  return SOCIAL_UPLOADS_DIR;
+  return getLegacySocialsDir();
 }
 
 export function isPublishablePlatform(p: SocialPlatform): p is PublishablePlatform {
@@ -69,12 +67,7 @@ export function resolvePublicVideoUrl(videoUrl: string): string {
 
 async function loadVideoBuffer(videoUrl: string): Promise<Uint8Array> {
   if (videoUrl.startsWith("/api/socials/media/")) {
-    const fileName = basename(videoUrl.replace("/api/socials/media/", ""));
-    const fullPath = join(ensureUploadsDir(), fileName);
-    if (!existsSync(fullPath)) {
-      throw new Error(`Uploaded video file not found on disk: ${fileName}`);
-    }
-    return new Uint8Array(readFileSync(fullPath));
+    return readMediaBuffer(videoUrl);
   }
 
   const resolvedUrl = resolvePublicVideoUrl(videoUrl);

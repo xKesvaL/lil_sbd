@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -21,6 +22,12 @@ function hasRemoteDatabaseUrl(): boolean {
 }
 
 function createDatabaseConnection(): DrizzleDb {
+  // Always isolate Vitest runs in memory so tests never touch remote/dev Postgres or lock .data/pglite
+  if (process.env.VITEST && process.env.TEST_USE_REMOTE_DB !== "true") {
+    const pglite = new PGlite();
+    return drizzlePglite(pglite, { schema }) as unknown as DrizzleDb;
+  }
+
   if (hasRemoteDatabaseUrl()) {
     const client = postgres(process.env.DATABASE_URL!, {
       prepare: false,
@@ -29,8 +36,10 @@ function createDatabaseConnection(): DrizzleDb {
     return drizzlePostgres(client, { schema });
   }
 
-  mkdirSync(".data/pglite", { recursive: true });
-  const pglite = new PGlite(".data/pglite");
+  const dataDir = process.env.SOCIAL_DATA_DIR?.trim() || ".data";
+  const pgliteDir = join(dataDir, "pglite");
+  mkdirSync(pgliteDir, { recursive: true });
+  const pglite = new PGlite(pgliteDir);
   return drizzlePglite(pglite, { schema }) as unknown as DrizzleDb;
 }
 
@@ -220,8 +229,70 @@ CREATE TABLE IF NOT EXISTS "social_posts" (
 ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_url" text;
 ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_file_name" text;
 ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "video_size_bytes" integer;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "thumbnail_url" text;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "edit_mode" text DEFAULT 'manual' NOT NULL;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "review_status" text DEFAULT 'approved' NOT NULL;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "edit_recipe" jsonb;
+ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "raw_cleaned_at" timestamp;
 ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "auto_publish" boolean DEFAULT false NOT NULL;
 ALTER TABLE "social_posts" ADD COLUMN IF NOT EXISTS "platform_deliveries" jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "timezone" text DEFAULT 'Europe/Paris' NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "cadence_days" jsonb DEFAULT '[1,3,5,0]'::jsonb NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "cadence_time" text DEFAULT '18:00' NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "avoid_consecutive_track" boolean DEFAULT true NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "default_edit_preset" text DEFAULT 'punchy' NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "burn_hook_overlay" boolean DEFAULT false NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "audio_headroom_db" double precision DEFAULT -1.5 NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "raw_retention_days" integer DEFAULT 7 NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "rendered_retention_days" integer DEFAULT 90 NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "storage_cap_gb" integer DEFAULT 8 NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "gemini_model" text DEFAULT '' NOT NULL;
+
+ALTER TABLE "artist_catalog_items" ADD COLUMN IF NOT EXISTS "master_audio_path" text;
+ALTER TABLE "artist_catalog_items" ADD COLUMN IF NOT EXISTS "audio_analysis" jsonb;
+
+CREATE TABLE IF NOT EXISTS "social_raw_clips" (
+  "id" text PRIMARY KEY NOT NULL,
+  "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+  "post_id" text NOT NULL REFERENCES "social_posts"("id") ON DELETE CASCADE,
+  "storage_key" text NOT NULL,
+  "file_name" text NOT NULL,
+  "size_bytes" integer DEFAULT 0 NOT NULL,
+  "duration_sec" double precision,
+  "width" integer,
+  "height" integer,
+  "fps" double precision,
+  "detected_offset_sec" double precision,
+  "sync_confidence" double precision,
+  "order_index" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "background_jobs" (
+  "id" text PRIMARY KEY NOT NULL,
+  "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+  "post_id" text REFERENCES "social_posts"("id") ON DELETE CASCADE,
+  "catalog_item_id" text REFERENCES "artist_catalog_items"("id") ON DELETE CASCADE,
+  "job_type" text NOT NULL,
+  "status" text DEFAULT 'queued' NOT NULL,
+  "progress" integer DEFAULT 0 NOT NULL,
+  "stage_label" text DEFAULT 'Queued' NOT NULL,
+  "payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "result" jsonb,
+  "attempts" integer DEFAULT 0 NOT NULL,
+  "max_attempts" integer DEFAULT 3 NOT NULL,
+  "run_after" timestamp DEFAULT now() NOT NULL,
+  "locked_at" timestamp,
+  "started_at" timestamp,
+  "completed_at" timestamp,
+  "error" text,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "background_jobs_status_run_after_idx" ON "background_jobs" ("status", "run_after");
+CREATE INDEX IF NOT EXISTS "social_raw_clips_post_id_idx" ON "social_raw_clips" ("post_id");
 
 CREATE TABLE IF NOT EXISTS "hashtag_presets" (
   "id" text PRIMARY KEY NOT NULL,

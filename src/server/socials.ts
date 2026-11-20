@@ -117,6 +117,7 @@ const upsertCatalogItemSchema = z.object({
   releaseDate: z.string(),
   artworkUrl: z.string().optional(),
   audioPreviewUrl: z.string().optional(),
+  masterAudioPath: z.string().optional(),
   bpm: z.number().int().min(60).max(350).default(200),
   keySignature: z.string().default("F Minor"),
   genreTag: z.string().default("Uptempo Hardcore"),
@@ -139,6 +140,30 @@ export const upsertCatalogItemServerFn = createServerFn({ method: "POST" })
     const { upsertCatalogItemImpl } = await import("./socials.server");
     return upsertCatalogItemImpl(data);
   });
+
+export const analyzeCatalogTrackServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      catalogItemId: z.string(),
+      runImmediately: z.boolean().default(true),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { analyzeCatalogTrackImpl } = await import("./socials.server");
+    return analyzeCatalogTrackImpl(data);
+  });
+
+export const analyzeAllCatalogTracksServerFn = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const { analyzeAllCatalogTracksImpl } = await import("./socials.server");
+    return analyzeAllCatalogTracksImpl();
+  },
+);
+
+export const getBackgroundJobsServerFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { getBackgroundJobsImpl } = await import("./socials.server");
+  return getBackgroundJobsImpl();
+});
 
 export const deleteCatalogItemServerFn = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string() }))

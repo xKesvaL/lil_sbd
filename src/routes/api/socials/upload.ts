@@ -1,9 +1,7 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureSchemaInitialized } from "#/db";
 import { auth } from "#/lib/auth";
-import { ensureUploadsDir } from "#/server/social-publisher.server";
+import { buildStorageKey, putMediaObject } from "#/server/media-storage.server";
 
 export const Route = createFileRoute("/api/socials/upload")({
   server: {
@@ -39,25 +37,17 @@ export const Route = createFileRoute("/api/socials/upload")({
             );
           }
 
-          const safeBase = file.name
-            .replace(/\.[^/.]+$/, "")
-            .toLowerCase()
-            .replace(/[^a-z0-9_-]+/g, "-")
-            .replace(/(^-|-$)/g, "")
-            .slice(0, 48);
-          const ext = file.name.toLowerCase().endsWith(".mov") ? ".mov" : ".mp4";
-          const storedFileName = `${Date.now()}-${safeBase || "clip"}${ext}`;
-
-          const uploadDir = ensureUploadsDir();
-          const destPath = join(uploadDir, storedFileName);
+          const key = buildStorageKey("rendered", file.name || "clip.mp4");
           const arrayBuffer = await file.arrayBuffer();
-          writeFileSync(destPath, Buffer.from(arrayBuffer));
+          const stored = await putMediaObject(key, new Uint8Array(arrayBuffer));
 
           return new Response(
             JSON.stringify({
-              videoUrl: `/api/socials/media/${storedFileName}`,
+              storageKey: stored.key,
+              videoUrl: stored.publicUrl,
               videoFileName: file.name,
-              videoSizeBytes: file.size,
+              videoSizeBytes: stored.sizeBytes,
+              storageMode: stored.storageMode,
             }),
             {
               status: 200,

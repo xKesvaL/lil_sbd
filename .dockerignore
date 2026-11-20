@@ -1,0 +1,12 @@
+node_modules
+.git
+.data
+.output
+.nitro
+.cache
+.content-collections
+dist
+.env
+.env.*
+!.env.example
+*.log

@@ -374,6 +374,7 @@ function SocialGrowthStudioPage() {
               hashtagPresets={data.hashtagPresets}
               connections={data.connections}
               oauthEnvConfigured={data.oauthEnvConfigured}
+              storageStats={data.storageStats}
               onRefresh={refreshStudioData}
             />
           ) : null}

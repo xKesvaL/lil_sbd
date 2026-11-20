@@ -24,6 +24,13 @@ import { auth, getConfiguredAuthInfo } from "#/lib/auth";
 import { CAMPAIGN_ROLLOUT_BLUEPRINTS } from "#/lib/social-blueprints";
 import { songs } from "#/lib/songs";
 import {
+  enqueueJob,
+  ensureBackgroundWorkerRunning,
+  listUserJobs,
+  processNextJob,
+} from "./jobs.server";
+import { getLocalStorageStats } from "./media-storage.server";
+import {
   ensureSocialSchedulerRunning,
   isPublishablePlatform,
   publishSocialPostToPlatforms,
@@ -104,10 +111,11 @@ export async function getStudioDashboardImpl() {
   const userId = session.user.id;
 
   ensureSocialSchedulerRunning();
+  ensureBackgroundWorkerRunning();
   await ensureArtistProfile(userId, session.user.name);
   await runDueScheduledPosts();
 
-  const [profileRows, catalog, campaigns, posts, templates, presets, rawConnections] =
+  const [profileRows, catalog, campaigns, posts, templates, presets, rawConnections, recentJobs] =
     await Promise.all([
       db.select().from(artistProfiles).where(eq(artistProfiles.userId, userId)).limit(1),
       db
@@ -140,6 +148,7 @@ export async function getStudioDashboardImpl() {
         .from(socialConnections)
         .where(eq(socialConnections.userId, userId))
         .orderBy(asc(socialConnections.platform)),
+      listUserJobs(userId, 20),
     ]);
 
   const connections = rawConnections.map((c) => ({
@@ -173,6 +182,8 @@ export async function getStudioDashboardImpl() {
     connections,
     oauthEnvConfigured,
     databaseMode: getDatabaseMode(),
+    storageStats: getLocalStorageStats(),
+    recentJobs,
   };
 }
 
@@ -435,6 +446,7 @@ export async function syncLilSbdCatalogImpl() {
         releaseDate: song.releaseDate,
         artworkUrl: song.artworkUrl ?? "/covers/DEAD-OPS.png",
         audioPreviewUrl: song.urlMP3,
+        masterAudioPath: song.urlWAV || song.urlMP3,
         bpm: song.slug === "ascension" || song.slug === "lock-the-doors" ? 205 : 200,
         keySignature: "F Minor",
         genreTag: "Uptempo Hardcore",
@@ -462,6 +474,7 @@ export async function upsertCatalogItemImpl(data: {
   releaseDate: string;
   artworkUrl?: string;
   audioPreviewUrl?: string;
+  masterAudioPath?: string;
   bpm: number;
   keySignature: string;
   genreTag: string;
@@ -493,6 +506,9 @@ export async function upsertCatalogItemImpl(data: {
         releaseDate: new Date(data.releaseDate),
         artworkUrl: data.artworkUrl || "/covers/DEAD-OPS.png",
         audioPreviewUrl: data.audioPreviewUrl || null,
+        ...(data.masterAudioPath !== undefined
+          ? { masterAudioPath: data.masterAudioPath || null }
+          : {}),
         bpm: data.bpm,
         keySignature: data.keySignature,
         genreTag: data.genreTag,
@@ -515,6 +531,7 @@ export async function upsertCatalogItemImpl(data: {
     releaseDate: new Date(data.releaseDate),
     artworkUrl: data.artworkUrl || "/covers/DEAD-OPS.png",
     audioPreviewUrl: data.audioPreviewUrl || null,
+    masterAudioPath: data.masterAudioPath || null,
     bpm: data.bpm,
     keySignature: data.keySignature,
     genreTag: data.genreTag,
@@ -525,7 +542,92 @@ export async function upsertCatalogItemImpl(data: {
       { label: "2nd Kick Switch", startSec: 72, endSec: 88 },
     ],
   });
+
+  if (data.masterAudioPath || data.audioPreviewUrl) {
+    await enqueueJob({
+      userId,
+      catalogItemId: id,
+      jobType: "analyze_track",
+      stageLabel: `Queued audio analysis for ${data.title}`,
+      payload: { catalogItemId: id },
+    });
+    ensureBackgroundWorkerRunning();
+  }
+
   return { id };
+}
+
+export async function analyzeCatalogTrackImpl(data: { catalogItemId: string; runImmediately?: boolean }) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const rows = await db
+    .select()
+    .from(artistCatalogItems)
+    .where(
+      and(eq(artistCatalogItems.id, data.catalogItemId), eq(artistCatalogItems.userId, userId)),
+    )
+    .limit(1);
+
+  const item = rows[0];
+  if (!item) {
+    throw new Error("Track not found in catalog");
+  }
+
+  const job = await enqueueJob({
+    userId,
+    catalogItemId: item.id,
+    jobType: "analyze_track",
+    stageLabel: `Queued audio analysis for ${item.title}`,
+    payload: { catalogItemId: item.id },
+  });
+
+  if (data.runImmediately) {
+    const processed = await processNextJob();
+    const updatedRows = await db
+      .select()
+      .from(artistCatalogItems)
+      .where(eq(artistCatalogItems.id, item.id))
+      .limit(1);
+    return {
+      job: processed ?? job,
+      analysis: updatedRows[0]?.audioAnalysis ?? null,
+    };
+  }
+
+  ensureBackgroundWorkerRunning();
+  return { job, analysis: item.audioAnalysis ?? null };
+}
+
+export async function analyzeAllCatalogTracksImpl() {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+  const items = await db
+    .select()
+    .from(artistCatalogItems)
+    .where(eq(artistCatalogItems.userId, userId));
+
+  let queuedCount = 0;
+  for (const item of items) {
+    if (!item.audioAnalysis && (item.masterAudioPath || item.audioPreviewUrl)) {
+      await enqueueJob({
+        userId,
+        catalogItemId: item.id,
+        jobType: "analyze_track",
+        stageLabel: `Queued audio analysis for ${item.title}`,
+        payload: { catalogItemId: item.id },
+      });
+      queuedCount++;
+    }
+  }
+
+  ensureBackgroundWorkerRunning();
+  return { queuedCount };
+}
+
+export async function getBackgroundJobsImpl(limit = 25) {
+  const session = await requireSessionImpl();
+  return listUserJobs(session.user.id, limit);
 }
 
 export async function deleteCatalogItemImpl(data: { id: string }) {

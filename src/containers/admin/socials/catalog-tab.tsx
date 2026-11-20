@@ -9,9 +9,11 @@ import {
   IconPlus,
   IconRefresh,
   IconTrash,
+  IconUpload,
+  IconWaveSine,
   IconX,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -31,6 +33,8 @@ import type {
 } from "#/db/schema";
 import { cn } from "#/lib/utils";
 import {
+  analyzeAllCatalogTracksServerFn,
+  analyzeCatalogTrackServerFn,
   createHashtagPresetServerFn,
   deleteCatalogItemServerFn,
   deleteHashtagPresetServerFn,
@@ -44,13 +48,34 @@ import {
 import type { SafeSocialConnection } from "./publishing-copilot-sheet";
 import { PLATFORM_META, PUBLISHABLE_PLATFORMS } from "./social-constants";
 
+interface StorageStatsSummary {
+  storageMode: "s3_r2" | "local_nvme";
+  dataDir: string;
+  totalBytes: number;
+  byNamespace: Record<string, { files: number; bytes: number }>;
+}
+
 interface CatalogTabProps {
   profile: ArtistProfileRecord;
   catalog: ArtistCatalogItemRecord[];
   hashtagPresets: HashtagPresetRecord[];
   connections: SafeSocialConnection[];
   oauthEnvConfigured: Record<PublishablePlatform, boolean>;
+  storageStats?: StorageStatsSummary;
   onRefresh: () => Promise<void>;
+}
+
+function formatSec(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}:${String(rem).padStart(2, "0")}`;
+}
+
+function formatMb(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 const PLATFORM_SETUP_GUIDES: Record<
@@ -95,6 +120,7 @@ export function CatalogTab({
   hashtagPresets,
   connections,
   oauthEnvConfigured,
+  storageStats,
   onRefresh,
 }: CatalogTabProps) {
   // Social Account Setup Modal / Panel State
@@ -138,6 +164,12 @@ export function CatalogTab({
   const [itemSpotify, setItemSpotify] = useState("");
   const [itemSoundcloud, setItemSoundcloud] = useState("");
   const [itemArtwork, setItemArtwork] = useState("");
+  const [itemMasterAudioPath, setItemMasterAudioPath] = useState("");
+  const [itemAudioPreviewUrl, setItemAudioPreviewUrl] = useState("");
+  const [isUploadingMaster, setIsUploadingMaster] = useState(false);
+  const [analyzingTrackId, setAnalyzingTrackId] = useState<string | null>(null);
+  const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
+  const masterInputRef = useRef<HTMLInputElement | null>(null);
 
   // Hashtag Preset form state
   const [showAddPreset, setShowAddPreset] = useState(false);
@@ -231,6 +263,8 @@ export function CatalogTab({
     setItemSpotify("");
     setItemSoundcloud("");
     setItemArtwork("");
+    setItemMasterAudioPath("");
+    setItemAudioPreviewUrl("");
     setShowAddTrack(false);
   };
 
@@ -244,7 +278,80 @@ export function CatalogTab({
     setItemSpotify(item.streamingLinks?.spotify ?? "");
     setItemSoundcloud(item.streamingLinks?.soundcloud ?? "");
     setItemArtwork(item.artworkUrl ?? "");
+    setItemMasterAudioPath(item.masterAudioPath ?? "");
+    setItemAudioPreviewUrl(item.audioPreviewUrl ?? "");
     setShowAddTrack(true);
+  };
+
+  const handleMasterAudioUpload = async (file: File) => {
+    setIsUploadingMaster(true);
+    try {
+      const formData = new FormData();
+      formData.append("audio", file);
+      const res = await fetch("/api/socials/master-upload", {
+        method: "POST",
+        body: formData,
+      });
+      const json = (await res.json()) as {
+        masterAudioPath?: string;
+        audioPreviewUrl?: string;
+        fileName?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.masterAudioPath) {
+        throw new Error(json.error || "Audio upload failed");
+      }
+      setItemMasterAudioPath(json.masterAudioPath);
+      if (json.audioPreviewUrl) {
+        setItemAudioPreviewUrl(json.audioPreviewUrl);
+      }
+      if (!itemTitle.trim()) {
+        setItemTitle(file.name.replace(/\.[^/.]+$/, "").toUpperCase());
+      }
+      toast.success(`Uploaded master "${file.name}"`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload master audio");
+    } finally {
+      setIsUploadingMaster(false);
+    }
+  };
+
+  const handleAnalyzeTrack = async (catalogItemId: string, title: string) => {
+    setAnalyzingTrackId(catalogItemId);
+    try {
+      const res = await analyzeCatalogTrackServerFn({
+        data: { catalogItemId, runImmediately: true },
+      });
+      await onRefresh();
+      if (res.analysis) {
+        toast.success(
+          `Analyzed "${title}": ${res.analysis.bpm} BPM • ${res.analysis.drops.length} drop(s) detected`,
+        );
+      } else {
+        toast.success(`Queued audio analysis for "${title}"`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Audio analysis failed");
+    } finally {
+      setAnalyzingTrackId(null);
+    }
+  };
+
+  const handleAnalyzeAllTracks = async () => {
+    setIsAnalyzingAll(true);
+    try {
+      const res = await analyzeAllCatalogTracksServerFn();
+      await onRefresh();
+      toast.success(
+        res.queuedCount > 0
+          ? `Queued audio analysis for ${res.queuedCount} track(s) in background worker`
+          : "All tracks with audio are already analyzed!",
+      );
+    } catch {
+      toast.error("Failed to queue track analysis");
+    } finally {
+      setIsAnalyzingAll(false);
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -303,6 +410,8 @@ export function CatalogTab({
           keySignature: "F Minor",
           genreTag: genre,
           artworkUrl: itemArtwork.trim() || undefined,
+          audioPreviewUrl: itemAudioPreviewUrl.trim() || undefined,
+          masterAudioPath: itemMasterAudioPath.trim() || undefined,
           streamingLinks: {
             spotify: itemSpotify.trim() || undefined,
             soundcloud: itemSoundcloud.trim() || undefined,
@@ -702,7 +811,22 @@ export function CatalogTab({
                 Bind tracks to your posts for 1-click audio preview, BPM hooks, and streaming links.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {storageStats ? (
+                <Badge variant="outline" className="text-[0.65rem] text-muted-foreground">
+                  {storageStats.storageMode === "s3_r2" ? "Cloudflare R2 / S3" : "Local NVMe"} •{" "}
+                  {formatMb(storageStats.totalBytes)}
+                </Badge>
+              ) : null}
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={isAnalyzingAll || catalog.length === 0}
+                onClick={handleAnalyzeAllTracks}
+              >
+                <IconWaveSine className={cn("size-3.5", isAnalyzingAll && "animate-pulse")} />
+                <span>{isAnalyzingAll ? "Queuing..." : "Analyze All Audio"}</span>
+              </Button>
               <Button
                 size="xs"
                 variant="outline"
@@ -720,7 +844,7 @@ export function CatalogTab({
                 }}
               >
                 <IconPlus className="size-3.5" />
-                <span>{showAddTrack ? "Close" : "Add Track"}</span>
+                <span>{showAddTrack ? "Close" : "Add Track / Demo"}</span>
               </Button>
             </div>
           </div>
@@ -769,7 +893,53 @@ export function CatalogTab({
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-muted-foreground">
-                  Spotify Link
+                  Unreleased Demo / Master Audio (.WAV / .MP3)
+                </label>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <input
+                    ref={masterInputRef}
+                    type="file"
+                    accept="audio/wav,audio/mpeg,audio/flac,audio/mp4,audio/ogg,.wav,.mp3,.flac,.m4a,.ogg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleMasterAudioUpload(f);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    disabled={isUploadingMaster}
+                    onClick={() => masterInputRef.current?.click()}
+                  >
+                    {isUploadingMaster ? (
+                      <IconLoader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <IconUpload className="size-3.5" />
+                    )}
+                    <span>
+                      {isUploadingMaster
+                        ? "Uploading..."
+                        : itemMasterAudioPath
+                          ? "Replace Master WAV/MP3"
+                          : "Upload Master WAV/MP3"}
+                    </span>
+                  </Button>
+                  {itemMasterAudioPath ? (
+                    <span className="truncate font-mono text-[0.68rem] text-emerald-300">
+                      {itemMasterAudioPath}
+                    </span>
+                  ) : (
+                    <span className="text-[0.68rem] text-muted-foreground">
+                      Used for auto-sync & clean master audio swap
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Spotify Link (optional)
                 </label>
                 <input
                   type="text"
@@ -779,7 +949,7 @@ export function CatalogTab({
                   className="mt-1 w-full border border-border/70 bg-card/50 px-2.5 py-1.5 text-xs"
                 />
               </div>
-              <div className="flex items-end justify-end gap-2">
+              <div className="flex items-end justify-end gap-2 sm:col-span-3">
                 <Button type="button" size="sm" variant="ghost" onClick={resetTrackForm}>
                   Cancel
                 </Button>
@@ -798,61 +968,145 @@ export function CatalogTab({
             </div>
           ) : (
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {catalog.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-2.5 border border-border/60 bg-background/60 p-2.5"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {item.artworkUrl ? (
-                      <img
-                        src={item.artworkUrl}
-                        alt={item.title}
-                        className="size-10 shrink-0 object-cover border border-white/10"
-                      />
-                    ) : null}
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="text-[0.68rem] text-muted-foreground">
-                        {item.bpm ?? 200} BPM • {item.albumOrChapter || "Single"}
-                      </p>
+              {catalog.map((item) => {
+                const analysis = item.audioAnalysis;
+                const isAnalyzing = analyzingTrackId === item.id;
+                const hasAudio = Boolean(item.masterAudioPath || item.audioPreviewUrl);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col justify-between gap-2 border border-border/60 bg-background/60 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {item.artworkUrl ? (
+                          <img
+                            src={item.artworkUrl}
+                            alt={item.title}
+                            className="size-10 shrink-0 object-cover border border-white/10"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-foreground">
+                            {item.title}
+                          </p>
+                          <p className="text-[0.68rem] text-muted-foreground">
+                            {analysis ? `${analysis.bpm} BPM` : `${item.bpm ?? 200} BPM`} •{" "}
+                            {item.albumOrChapter || "Single"}
+                            {analysis ? ` • ${formatSec(analysis.durationSec)}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {hasAudio ? (
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            disabled={isAnalyzing}
+                            onClick={() => void handleAnalyzeTrack(item.id, item.title)}
+                            title={
+                              analysis
+                                ? "Re-analyze BPM, beat grid & drops"
+                                : "Analyze BPM, beat grid & drops"
+                            }
+                          >
+                            {isAnalyzing ? (
+                              <IconLoader2 className="size-3.5 animate-spin text-primary" />
+                            ) : (
+                              <IconWaveSine
+                                className={cn(
+                                  "size-3.5",
+                                  analysis ? "text-emerald-400" : "text-muted-foreground",
+                                )}
+                              />
+                            )}
+                          </Button>
+                        ) : null}
+                        {item.streamingLinks?.spotify ? (
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(item.streamingLinks.spotify!);
+                              toast.success("Copied Spotify URL");
+                            }}
+                            title="Copy Spotify URL"
+                          >
+                            <IconCopy className="size-3.5" />
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => handleEditItem(item)}
+                          title="Edit track"
+                        >
+                          <IconEdit className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => handleDeleteItem(item.id)}
+                          title="Delete track"
+                        >
+                          <IconTrash className="size-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {item.streamingLinks?.spotify ? (
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(item.streamingLinks.spotify!);
-                          toast.success("Copied Spotify URL");
-                        }}
-                        title="Copy Spotify URL"
-                      >
-                        <IconCopy className="size-3.5" />
-                      </Button>
+
+                    {analysis ? (
+                      <div className="space-y-1.5 border-t border-border/40 pt-2">
+                        <div className="flex h-5 items-end gap-[1px] overflow-hidden bg-card/40 px-1 py-0.5">
+                          {analysis.energyEnvelope.slice(0, 80).map((amp, idx) => {
+                            const barTime =
+                              (idx / Math.max(1, Math.min(80, analysis.energyEnvelope.length))) *
+                              analysis.durationSec;
+                            const inDrop = analysis.drops.some(
+                              (d) => barTime >= d.dropImpactSec && barTime <= d.endSec,
+                            );
+                            return (
+                              <span
+                                key={idx}
+                                style={{ height: `${Math.max(12, Math.round(amp * 100))}%` }}
+                                className={cn(
+                                  "flex-1 rounded-[1px]",
+                                  inDrop ? "bg-primary" : "bg-muted-foreground/35",
+                                )}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 text-[0.64rem] text-muted-foreground">
+                          <span className="border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-medium text-emerald-300">
+                            {analysis.barsSec.length} bars
+                          </span>
+                          {analysis.drops.slice(0, 3).map((d, i) => (
+                            <span
+                              key={i}
+                              className="border border-primary/35 bg-primary/10 px-1.5 py-0.5 text-primary-foreground"
+                            >
+                              {d.label}: {formatSec(d.dropImpactSec)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : hasAudio ? (
+                      <div className="flex items-center justify-between border-t border-border/40 pt-1.5 text-[0.65rem] text-muted-foreground">
+                        <span>Not analyzed yet</span>
+                        <button
+                          type="button"
+                          disabled={isAnalyzing}
+                          onClick={() => void handleAnalyzeTrack(item.id, item.title)}
+                          className="font-semibold text-primary hover:underline"
+                        >
+                          {isAnalyzing ? "Analyzing..." : "Analyze beats & drops →"}
+                        </button>
+                      </div>
                     ) : null}
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => handleEditItem(item)}
-                      title="Edit track"
-                    >
-                      <IconEdit className="size-3.5" />
-                    </Button>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => handleDeleteItem(item.id)}
-                      title="Delete track"
-                    >
-                      <IconTrash className="size-3.5 text-destructive" />
-                    </Button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
