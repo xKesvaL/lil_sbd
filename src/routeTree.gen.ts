@@ -18,7 +18,11 @@ import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminSocialsRouteImport } from './routes/admin.socials'
 import { Route as PresskitIndexRouteImport } from './routes/presskit.index'
 import { Route as PresskitDownloadRouteImport } from './routes/presskit.download'
+import { Route as AdminSocialsIndexRouteImport } from './routes/admin.socials.index'
+import { Route as AdminSocialsQueueRouteImport } from './routes/admin.socials.queue'
+import { Route as AdminSocialsSettingsRouteImport } from './routes/admin.socials.settings'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiSocialsCronRouteImport } from './routes/api/socials/cron'
 import { Route as ApiSocialsMasterUploadRouteImport } from './routes/api/socials/master-upload'
 import { Route as ApiSocialsRawUploadRouteImport } from './routes/api/socials/raw-upload'
 import { Route as ApiSocialsUploadRouteImport } from './routes/api/socials/upload'
@@ -70,9 +74,29 @@ const PresskitDownloadRoute = PresskitDownloadRouteImport.update({
   path: '/download',
   getParentRoute: () => PresskitRoute,
 } as any)
+const AdminSocialsIndexRoute = AdminSocialsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSocialsRoute,
+} as any)
+const AdminSocialsQueueRoute = AdminSocialsQueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => AdminSocialsRoute,
+} as any)
+const AdminSocialsSettingsRoute = AdminSocialsSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminSocialsRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSocialsCronRoute = ApiSocialsCronRouteImport.update({
+  id: '/api/socials/cron',
+  path: '/api/socials/cron',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSocialsMasterUploadRoute = ApiSocialsMasterUploadRouteImport.update({
@@ -107,14 +131,18 @@ export interface FileRoutesByFullPath {
   '/download': typeof DownloadRoute
   '/presskit': typeof PresskitRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
-  '/admin/socials': typeof AdminSocialsRoute
+  '/admin/socials': typeof AdminSocialsRouteWithChildren
   '/presskit/download': typeof PresskitDownloadRoute
   '/admin/': typeof AdminIndexRoute
   '/presskit/': typeof PresskitIndexRoute
+  '/admin/socials/queue': typeof AdminSocialsQueueRoute
+  '/admin/socials/settings': typeof AdminSocialsSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/cron': typeof ApiSocialsCronRoute
   '/api/socials/master-upload': typeof ApiSocialsMasterUploadRoute
   '/api/socials/raw-upload': typeof ApiSocialsRawUploadRoute
   '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/admin/socials/': typeof AdminSocialsIndexRoute
   '/api/socials/media/$': typeof ApiSocialsMediaSplatRoute
   '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
@@ -122,14 +150,17 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
   '/admin/login': typeof AdminLoginRoute
-  '/admin/socials': typeof AdminSocialsRoute
   '/presskit/download': typeof PresskitDownloadRoute
   '/admin': typeof AdminIndexRoute
   '/presskit': typeof PresskitIndexRoute
+  '/admin/socials/queue': typeof AdminSocialsQueueRoute
+  '/admin/socials/settings': typeof AdminSocialsSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/cron': typeof ApiSocialsCronRoute
   '/api/socials/master-upload': typeof ApiSocialsMasterUploadRoute
   '/api/socials/raw-upload': typeof ApiSocialsRawUploadRoute
   '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/admin/socials': typeof AdminSocialsIndexRoute
   '/api/socials/media/$': typeof ApiSocialsMediaSplatRoute
   '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
@@ -140,14 +171,18 @@ export interface FileRoutesById {
   '/download': typeof DownloadRoute
   '/presskit': typeof PresskitRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
-  '/admin/socials': typeof AdminSocialsRoute
+  '/admin/socials': typeof AdminSocialsRouteWithChildren
   '/presskit/download': typeof PresskitDownloadRoute
   '/admin/': typeof AdminIndexRoute
   '/presskit/': typeof PresskitIndexRoute
+  '/admin/socials/queue': typeof AdminSocialsQueueRoute
+  '/admin/socials/settings': typeof AdminSocialsSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/socials/cron': typeof ApiSocialsCronRoute
   '/api/socials/master-upload': typeof ApiSocialsMasterUploadRoute
   '/api/socials/raw-upload': typeof ApiSocialsRawUploadRoute
   '/api/socials/upload': typeof ApiSocialsUploadRoute
+  '/admin/socials/': typeof AdminSocialsIndexRoute
   '/api/socials/media/$': typeof ApiSocialsMediaSplatRoute
   '/api/socials/oauth/$platform': typeof ApiSocialsOauthPlatformRoute
 }
@@ -163,10 +198,14 @@ export interface FileRouteTypes {
     | '/presskit/download'
     | '/admin/'
     | '/presskit/'
+    | '/admin/socials/queue'
+    | '/admin/socials/settings'
     | '/api/auth/$'
+    | '/api/socials/cron'
     | '/api/socials/master-upload'
     | '/api/socials/raw-upload'
     | '/api/socials/upload'
+    | '/admin/socials/'
     | '/api/socials/media/$'
     | '/api/socials/oauth/$platform'
   fileRoutesByTo: FileRoutesByTo
@@ -174,14 +213,17 @@ export interface FileRouteTypes {
     | '/'
     | '/download'
     | '/admin/login'
-    | '/admin/socials'
     | '/presskit/download'
     | '/admin'
     | '/presskit'
+    | '/admin/socials/queue'
+    | '/admin/socials/settings'
     | '/api/auth/$'
+    | '/api/socials/cron'
     | '/api/socials/master-upload'
     | '/api/socials/raw-upload'
     | '/api/socials/upload'
+    | '/admin/socials'
     | '/api/socials/media/$'
     | '/api/socials/oauth/$platform'
   id:
@@ -195,10 +237,14 @@ export interface FileRouteTypes {
     | '/presskit/download'
     | '/admin/'
     | '/presskit/'
+    | '/admin/socials/queue'
+    | '/admin/socials/settings'
     | '/api/auth/$'
+    | '/api/socials/cron'
     | '/api/socials/master-upload'
     | '/api/socials/raw-upload'
     | '/api/socials/upload'
+    | '/admin/socials/'
     | '/api/socials/media/$'
     | '/api/socials/oauth/$platform'
   fileRoutesById: FileRoutesById
@@ -209,6 +255,7 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   PresskitRoute: typeof PresskitRouteWithChildren
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiSocialsCronRoute: typeof ApiSocialsCronRoute
   ApiSocialsMasterUploadRoute: typeof ApiSocialsMasterUploadRoute
   ApiSocialsRawUploadRoute: typeof ApiSocialsRawUploadRoute
   ApiSocialsUploadRoute: typeof ApiSocialsUploadRoute
@@ -281,11 +328,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PresskitDownloadRouteImport
       parentRoute: typeof PresskitRoute
     }
+    '/admin/socials/': {
+      id: '/admin/socials/'
+      path: '/'
+      fullPath: '/admin/socials/'
+      preLoaderRoute: typeof AdminSocialsIndexRouteImport
+      parentRoute: typeof AdminSocialsRoute
+    }
+    '/admin/socials/queue': {
+      id: '/admin/socials/queue'
+      path: '/queue'
+      fullPath: '/admin/socials/queue'
+      preLoaderRoute: typeof AdminSocialsQueueRouteImport
+      parentRoute: typeof AdminSocialsRoute
+    }
+    '/admin/socials/settings': {
+      id: '/admin/socials/settings'
+      path: '/settings'
+      fullPath: '/admin/socials/settings'
+      preLoaderRoute: typeof AdminSocialsSettingsRouteImport
+      parentRoute: typeof AdminSocialsRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/socials/cron': {
+      id: '/api/socials/cron'
+      path: '/api/socials/cron'
+      fullPath: '/api/socials/cron'
+      preLoaderRoute: typeof ApiSocialsCronRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/socials/master-upload': {
@@ -326,15 +401,31 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminSocialsRouteChildren {
+  AdminSocialsQueueRoute: typeof AdminSocialsQueueRoute
+  AdminSocialsSettingsRoute: typeof AdminSocialsSettingsRoute
+  AdminSocialsIndexRoute: typeof AdminSocialsIndexRoute
+}
+
+const AdminSocialsRouteChildren: AdminSocialsRouteChildren = {
+  AdminSocialsQueueRoute: AdminSocialsQueueRoute,
+  AdminSocialsSettingsRoute: AdminSocialsSettingsRoute,
+  AdminSocialsIndexRoute: AdminSocialsIndexRoute,
+}
+
+const AdminSocialsRouteWithChildren = AdminSocialsRoute._addFileChildren(
+  AdminSocialsRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
-  AdminSocialsRoute: typeof AdminSocialsRoute
+  AdminSocialsRoute: typeof AdminSocialsRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
-  AdminSocialsRoute: AdminSocialsRoute,
+  AdminSocialsRoute: AdminSocialsRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -360,6 +451,7 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   PresskitRoute: PresskitRouteWithChildren,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSocialsCronRoute: ApiSocialsCronRoute,
   ApiSocialsMasterUploadRoute: ApiSocialsMasterUploadRoute,
   ApiSocialsRawUploadRoute: ApiSocialsRawUploadRoute,
   ApiSocialsUploadRoute: ApiSocialsUploadRoute,

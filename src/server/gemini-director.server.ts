@@ -250,6 +250,65 @@ function parseJsonFromGeminiResponse(rawJson: unknown): unknown {
 }
 
 /**
+ * Enforces Gemini's detected activeDancingStartSec / activeDancingEndSec bounds
+ * (in raw clip time) against master track coordinates so camera walk-up / walk-away
+ * dead air never slips into the final rendered window.
+ */
+export function clampDirectionToActiveDancingWindow(params: {
+  recommendedMasterStartSec: number;
+  recommendedDurationSec: number;
+  activeDancingStartSec: number;
+  activeDancingEndSec: number;
+  clipDurationSec: number;
+  detectedOffsetSec: number;
+  trackDurationSec: number;
+}): {
+  recommendedMasterStartSec: number;
+  recommendedDurationSec: number;
+  activeDancingStartSec: number;
+  activeDancingEndSec: number;
+} {
+  const validMasterMin = Math.max(0, params.detectedOffsetSec);
+  const validMasterMax = Math.min(
+    params.trackDurationSec,
+    params.detectedOffsetSec + Math.max(0.5, params.clipDurationSec),
+  );
+
+  const safeRawStart = Math.max(
+    0,
+    Math.min(params.clipDurationSec, params.activeDancingStartSec),
+  );
+  const safeRawEnd = Math.max(
+    safeRawStart,
+    Math.min(params.clipDurationSec, params.activeDancingEndSec),
+  );
+
+  const activeMasterMin = Math.max(validMasterMin, params.detectedOffsetSec + safeRawStart);
+  const activeMasterMax = Math.min(validMasterMax, params.detectedOffsetSec + safeRawEnd);
+
+  // Use active dancing bounds whenever they leave at least 4s of usable footage;
+  // otherwise fall back cleanly to the full clip/master overlap.
+  const hasUsableActiveWindow = activeMasterMax - activeMasterMin >= 4.0;
+  const boundMin = hasUsableActiveWindow ? activeMasterMin : validMasterMin;
+  const boundMax = hasUsableActiveWindow ? activeMasterMax : validMasterMax;
+
+  const maxAllowedDur = Math.max(0.5, boundMax - boundMin);
+  const targetDur = Math.min(maxAllowedDur, Math.max(4, Math.min(26, params.recommendedDurationSec)));
+  const clampedDur = maxAllowedDur < 4 ? maxAllowedDur : targetDur;
+  const clampedMasterStart = Math.max(
+    boundMin,
+    Math.min(boundMax - clampedDur, params.recommendedMasterStartSec),
+  );
+
+  return {
+    recommendedMasterStartSec: Number(clampedMasterStart.toFixed(2)),
+    recommendedDurationSec: Number(clampedDur.toFixed(2)),
+    activeDancingStartSec: Number(safeRawStart.toFixed(2)),
+    activeDancingEndSec: Number(safeRawEnd.toFixed(2)),
+  };
+}
+
+/**
  * Calls Gemini with a tiny 360p @ 2fps proxy + DSP beat/drop JSON in one structured call.
  * Automatically falls back to deterministic DSP direction if API key is missing or rate-limited.
  */
@@ -341,6 +400,7 @@ export async function directClipWithGemini(params: {
       `2. Choose recommendedMasterStartSec inside [${validMasterMin.toFixed(2)}, ${Math.max(validMasterMin, validMasterMax - 4).toFixed(2)}] and recommendedDurationSec between 10 and 22s (clamped to available overlap) so the edit opens on buildup/energy and hits the main drop cleanly.`,
       `3. Pick recommendedPreset ("subtle" | "punchy" | "hard") matching the clip's energy and lighting.`,
       `4. Write English-only copy in a professional, human, direct, NON-CORNY artist voice.`,
+      `   Pure music showcase ONLY (focus on the track, BPM, kick/sound energy, and streaming/bio link). NEVER mention any production course, free course, lessons, or tutorials.`,
       `   STRICTLY AVOID cringe engagement bait or clichés (no "WAIT TILL THE END", "ARE YOU READY?!", "DROP A 🔥", "THIS SLAPS", or emoji spam).`,
       `5. Return ONLY valid JSON matching this exact shape:`,
       `{"activeDancingStartSec":number,"activeDancingEndSec":number,"recommendedMasterStartSec":number,"recommendedDurationSec":number,"recommendedPreset":"subtle"|"punchy"|"hard","sceneSummary":string,"directorNotes":string,"title":string,"caption":string,"hookOverlayText":string,"hashtags":string[]}`,
@@ -384,19 +444,21 @@ export async function directClipWithGemini(params: {
     const parsedRaw = parseJsonFromGeminiResponse(json);
     const validated = geminiDirectionOutputSchema.parse(parsedRaw);
 
-    // Clamp Gemini's timestamps safely within valid overlap bounds
-    const maxAllowedDur = Math.max(4, validMasterMax - validMasterMin);
-    const clampedDur = Math.min(maxAllowedDur, Math.max(4, Math.min(26, validated.recommendedDurationSec)));
-    const clampedMasterStart = Math.max(
-      validMasterMin,
-      Math.min(validMasterMax - clampedDur, validated.recommendedMasterStartSec),
-    );
+    // Clamp Gemini's timestamps strictly inside active dancing bounds & valid overlap
+    const clampedWindow = clampDirectionToActiveDancingWindow({
+      recommendedMasterStartSec: validated.recommendedMasterStartSec,
+      recommendedDurationSec: validated.recommendedDurationSec,
+      activeDancingStartSec: validated.activeDancingStartSec,
+      activeDancingEndSec: validated.activeDancingEndSec,
+      clipDurationSec: params.clipDurationSec,
+      detectedOffsetSec: params.detectedOffsetSec,
+      trackDurationSec: params.trackAnalysis.durationSec,
+    });
 
     return {
       direction: {
         ...validated,
-        recommendedMasterStartSec: Number(clampedMasterStart.toFixed(2)),
-        recommendedDurationSec: Number(clampedDur.toFixed(2)),
+        ...clampedWindow,
         hashtags: normalizeHashtags(validated.hashtags),
       },
       source: "gemini",
@@ -483,7 +545,7 @@ export async function rerollCopyWithGemini(params: {
       params.sceneSummary ? `Visual scene: ${params.sceneSummary}.` : "",
       `Bio/track link: ${params.trackContext.streamingUrl || params.trackContext.defaultBioLink}.`,
       params.previousCaption ? `Avoid repeating this previous caption: "${params.previousCaption.slice(0, 180)}"` : "",
-      `Tone: English-only, direct, human, professional, zero corny hype clichés or emoji spam.`,
+      `Tone: English-only, direct, human, professional, zero corny hype clichés or emoji spam. Pure music showcase ONLY — never mention any production course, lessons, or tutorials.`,
       `Return ONLY valid JSON: {"title":string,"caption":string,"hookOverlayText":string,"hashtags":string[]}`,
     ]
       .filter(Boolean)

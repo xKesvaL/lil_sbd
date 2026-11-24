@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconBrandDiscord,
   IconCalendarClock,
   IconCheck,
   IconCopy,
@@ -50,6 +51,7 @@ import {
   disconnectSocialAccountServerFn,
   runMediaCleanupNowServerFn,
   syncLilSbdCatalogServerFn,
+  testDiscordWebhookServerFn,
   testSocialConnectionServerFn,
   updateArtistProfileServerFn,
   updateTrackAudioMetadataServerFn,
@@ -72,6 +74,8 @@ interface SystemDiagnostics {
   storageMode: "s3_r2" | "local_nvme";
   geminiConfigured: boolean;
   geminiModel: string;
+  cronSecretConfigured?: boolean;
+  discordWebhookConfigured?: boolean;
 }
 
 interface TracksSettingsTabProps {
@@ -181,6 +185,7 @@ export function TracksSettingsTab({
   const [avoidConsecutiveTrack, setAvoidConsecutiveTrack] = useState(
     profile.avoidConsecutiveTrack ?? true,
   );
+  const [fullAutopilot, setFullAutopilot] = useState(profile.fullAutopilot ?? false);
   const [defaultEditPreset, setDefaultEditPreset] = useState<EditPreset>(
     profile.defaultEditPreset || "punchy",
   );
@@ -192,6 +197,8 @@ export function TracksSettingsTab({
   );
   const [storageCapGb, setStorageCapGb] = useState(profile.storageCapGb ?? 8);
   const [geminiModel, setGeminiModel] = useState(profile.geminiModel ?? "");
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState(profile.discordWebhookUrl ?? "");
+  const [isTestingDiscord, setIsTestingDiscord] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Connected Social Accounts state
@@ -465,6 +472,7 @@ export function TracksSettingsTab({
           cadenceDays,
           cadenceTime,
           avoidConsecutiveTrack,
+          fullAutopilot,
           defaultEditPreset,
           burnHookOverlay,
           audioHeadroomDb: Number(audioHeadroomDb),
@@ -472,6 +480,7 @@ export function TracksSettingsTab({
           renderedRetentionDays: Number(renderedRetentionDays) || 90,
           storageCapGb: Number(storageCapGb) || 8,
           geminiModel: geminiModel.trim(),
+          discordWebhookUrl: discordWebhookUrl.trim(),
         },
       });
       await onRefresh();
@@ -480,6 +489,28 @@ export function TracksSettingsTab({
       toast.error(err instanceof Error ? err.message : "Could not save settings");
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleTestDiscordWebhook = async () => {
+    if (!discordWebhookUrl.trim()) {
+      toast.error("Paste a Discord webhook URL first.");
+      return;
+    }
+    setIsTestingDiscord(true);
+    try {
+      const res = await testDiscordWebhookServerFn({
+        data: { webhookUrl: discordWebhookUrl.trim() },
+      });
+      if (res.ok) {
+        toast.success("Sent test alert to Discord! Click Save Defaults to store it.");
+      } else {
+        toast.error(res.error || "Discord webhook test failed");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Discord webhook test failed");
+    } finally {
+      setIsTestingDiscord(false);
     }
   };
 
@@ -927,6 +958,43 @@ export function TracksSettingsTab({
               </div>
             </div>
 
+            {/* Discord Webhook Alerts */}
+            <div className="space-y-1.5 border-t border-border/50 pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <IconBrandDiscord className="size-3.5 text-indigo-400" />
+                  Discord Webhook Alerts (optional)
+                </label>
+                <span className="text-[0.65rem] text-muted-foreground">
+                  Pings on held-for-review clips, publish failures, TikTok inbox-ready drafts &amp;
+                  expiring tokens
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="url"
+                  value={discordWebhookUrl}
+                  onChange={(e) => setDiscordWebhookUrl(e.target.value)}
+                  placeholder="https://discord.com/api/webhooks/..."
+                  className="min-w-60 flex-1 border border-border/70 bg-background/80 px-2.5 py-1.5 font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={isTestingDiscord || !discordWebhookUrl.trim()}
+                  onClick={() => void handleTestDiscordWebhook()}
+                >
+                  {isTestingDiscord ? (
+                    <IconLoader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <IconBrandDiscord className="size-3.5 text-indigo-400" />
+                  )}
+                  <span>{isTestingDiscord ? "Sending..." : "Send Test Alert"}</span>
+                </Button>
+              </div>
+            </div>
+
             {/* Artist Profile & Toggles Row */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
               <div className="flex flex-wrap items-center gap-4 text-xs">
@@ -938,6 +1006,19 @@ export function TracksSettingsTab({
                     className="accent-primary"
                   />
                   <span>Avoid back-to-back posts of the same track</span>
+                </label>
+
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={fullAutopilot}
+                    onChange={(e) => setFullAutopilot(e.target.checked)}
+                    className="accent-primary"
+                  />
+                  <span>
+                    Full Autopilot by default (auto-approve &amp; schedule if sync ≥ 35% &amp;
+                    Gemini succeeds)
+                  </span>
                 </label>
 
                 <label className="inline-flex cursor-pointer items-center gap-2">
@@ -2068,6 +2149,20 @@ export function TracksSettingsTab({
                     diagnostics.storageMode === "s3_r2"
                       ? "Cloudflare R2 / S3 active"
                       : "Local NVMe active (flip to Cloudflare R2 anytime via S3_* env vars)",
+                },
+                {
+                  ok: Boolean(diagnostics.cronSecretConfigured),
+                  label: "Unattended Cron Heartbeat (/api/socials/cron)",
+                  detail: diagnostics.cronSecretConfigured
+                    ? "CRON_SECRET set — worker auto-boots on server start + accepts Bearer/secret pings"
+                    : "Worker auto-boots on startup. Set CRON_SECRET in Coolify to enable external POST /api/socials/cron pings",
+                },
+                {
+                  ok: Boolean(diagnostics.discordWebhookConfigured),
+                  label: "Discord Autopilot Alerts",
+                  detail: diagnostics.discordWebhookConfigured
+                    ? "Webhook configured for held clips, failures, TikTok drafts & expiring tokens"
+                    : "Optional: paste a Discord webhook URL above to get phone pings while away",
                 },
               ].map((row, idx) => (
                 <div

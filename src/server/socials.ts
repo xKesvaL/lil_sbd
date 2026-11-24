@@ -48,6 +48,7 @@ const updateProfileSchema = z.object({
   cadenceDays: z.array(z.number().int().min(0).max(6)).optional(),
   cadenceTime: z.string().optional(),
   avoidConsecutiveTrack: z.boolean().optional(),
+  fullAutopilot: z.boolean().optional(),
   defaultEditPreset: z.enum(["subtle", "punchy", "hard"]).optional(),
   burnHookOverlay: z.boolean().optional(),
   audioHeadroomDb: z.number().min(-6).max(0).optional(),
@@ -55,6 +56,7 @@ const updateProfileSchema = z.object({
   renderedRetentionDays: z.number().int().min(7).max(3650).optional(),
   storageCapGb: z.number().int().min(1).max(500).optional(),
   geminiModel: z.string().optional(),
+  discordWebhookUrl: z.string().optional(),
 });
 
 export const updateArtistProfileServerFn = createServerFn({ method: "POST" })
@@ -65,6 +67,17 @@ export const updateArtistProfileServerFn = createServerFn({ method: "POST" })
       ...data,
       targetPlatforms: data.targetPlatforms as SocialPlatform[] | undefined,
     });
+  });
+
+export const testDiscordWebhookServerFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      webhookUrl: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { testDiscordWebhookImpl } = await import("./socials.server");
+    return testDiscordWebhookImpl(data);
   });
 
 export const createAutopilotDraftServerFn = createServerFn({ method: "POST" })
@@ -158,6 +171,7 @@ export const createAutoEditPostServerFn = createServerFn({ method: "POST" })
       platforms: z.array(z.enum(["instagram_reels", "tiktok", "youtube_shorts"])).optional(),
       burnHookOverlay: z.boolean().optional(),
       hookOverlayText: z.string().optional(),
+      fullAutopilot: z.boolean().optional(),
     }),
   )
   .handler(async ({ data }) => {

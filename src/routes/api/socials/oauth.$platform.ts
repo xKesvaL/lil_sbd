@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
         const rawPlatform = params.platform as PublishablePlatform;
         if (!isPublishablePlatform(rawPlatform)) {
           return Response.redirect(
-            new URL("/admin/socials?oauth_error=invalid_platform", request.url).toString(),
+            new URL("/admin/socials/settings?oauth_error=invalid_platform", request.url).toString(),
             302,
           );
         }
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
             const clientId = process.env.META_APP_ID?.trim();
             if (!clientId) {
               return Response.redirect(
-                `${baseUrl}/admin/socials?tab=settings&setup=${rawPlatform}`,
+                `${baseUrl}/admin/socials/settings?setup=${rawPlatform}`,
                 302,
               );
             }
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
             const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
             if (!clientKey) {
               return Response.redirect(
-                `${baseUrl}/admin/socials?tab=settings&setup=${rawPlatform}`,
+                `${baseUrl}/admin/socials/settings?setup=${rawPlatform}`,
                 302,
               );
             }
@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
               process.env.GOOGLE_CLIENT_ID?.trim() || process.env.YOUTUBE_CLIENT_ID?.trim();
             if (!clientId) {
               return Response.redirect(
-                `${baseUrl}/admin/socials?tab=settings&setup=${rawPlatform}`,
+                `${baseUrl}/admin/socials/settings?setup=${rawPlatform}`,
                 302,
               );
             }
@@ -349,7 +349,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
           }
 
           return Response.redirect(
-            `${baseUrl}/admin/socials?tab=settings&connected=${rawPlatform}`,
+            `${baseUrl}/admin/socials/settings?connected=${rawPlatform}`,
             302,
           );
         } catch (err) {
@@ -357,7 +357,7 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
             err instanceof Error ? err.message : "OAuth connection failed",
           );
           return Response.redirect(
-            `${baseUrl}/admin/socials?tab=settings&oauth_error=${msg}`,
+            `${baseUrl}/admin/socials/settings?oauth_error=${msg}`,
             302,
           );
         }

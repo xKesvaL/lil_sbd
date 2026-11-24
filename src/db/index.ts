@@ -241,6 +241,7 @@ ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "timezone" text DEFAULT '
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "cadence_days" jsonb DEFAULT '[1,3,5,0]'::jsonb NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "cadence_time" text DEFAULT '18:00' NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "avoid_consecutive_track" boolean DEFAULT true NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "full_autopilot" boolean DEFAULT false NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "default_edit_preset" text DEFAULT 'punchy' NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "burn_hook_overlay" boolean DEFAULT false NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "audio_headroom_db" double precision DEFAULT -1.5 NOT NULL;
@@ -248,6 +249,7 @@ ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "raw_retention_days" inte
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "rendered_retention_days" integer DEFAULT 90 NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "storage_cap_gb" integer DEFAULT 8 NOT NULL;
 ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "gemini_model" text DEFAULT '' NOT NULL;
+ALTER TABLE "artist_profiles" ADD COLUMN IF NOT EXISTS "discord_webhook_url" text DEFAULT '' NOT NULL;
 
 ALTER TABLE "artist_catalog_items" ADD COLUMN IF NOT EXISTS "master_audio_path" text;
 ALTER TABLE "artist_catalog_items" ADD COLUMN IF NOT EXISTS "audio_analysis" jsonb;

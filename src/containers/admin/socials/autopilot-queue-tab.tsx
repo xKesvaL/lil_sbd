@@ -334,6 +334,11 @@ export function AutopilotQueueTab({
                         <span className="truncate text-sm font-bold text-foreground">
                           {post.title}
                         </span>
+                        {post.editRecipe?.autopilotEvaluation?.approved ? (
+                          <span className="inline-flex items-center gap-1 border border-emerald-500/40 bg-emerald-500/12 px-1.5 py-0.5 text-[0.64rem] font-semibold text-emerald-300">
+                            Auto-Approved
+                          </span>
+                        ) : null}
                         {track ? (
                           <span className="inline-flex items-center gap-1 border border-border/60 bg-card/60 px-1.5 py-0.5 text-[0.64rem] text-muted-foreground">
                             <IconDisc className="size-3 text-primary" />

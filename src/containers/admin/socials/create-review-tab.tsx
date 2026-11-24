@@ -639,6 +639,20 @@ function ReviewInboxCard({
             </div>
           ) : null}
 
+          {post.editRecipe?.autopilotEvaluation?.requested &&
+          !post.editRecipe.autopilotEvaluation.approved &&
+          post.editRecipe.autopilotEvaluation.holdReason ? (
+            <div className="flex items-start gap-2 border border-amber-500/45 bg-amber-500/12 px-2.5 py-2 text-[0.7rem] text-amber-100">
+              <IconAlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-300" />
+              <div>
+                <span className="font-semibold text-amber-200">
+                  Held by Full Autopilot safety check:{" "}
+                </span>
+                <span>{post.editRecipe.autopilotEvaluation.holdReason}</span>
+              </div>
+            </div>
+          ) : null}
+
           {post.editRecipe?.aiDirector?.directorNotes ? (
             <div className="flex items-start gap-2 border-l-2 border-primary/60 bg-primary/8 px-2.5 py-1.5 text-[0.68rem] text-muted-foreground">
               <IconSparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
@@ -944,6 +958,28 @@ function ReviewInboxCard({
   );
 }
 
+const DROP_PREFS_STORAGE_KEY = "lil-sbd:studio-drop-prefs:v1";
+
+interface SavedDropPrefs {
+  selectedTrackId?: string;
+  ingestMode?: "auto_edit" | "direct_upload";
+  multiFileBehavior?: "mashup" | "separate";
+  selectedPreset?: EditPreset;
+  selectedPlatforms?: PublishablePlatform[];
+  fullAutopilot?: boolean;
+}
+
+function loadSavedDropPrefs(): SavedDropPrefs {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(DROP_PREFS_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as SavedDropPrefs;
+  } catch {
+    return {};
+  }
+}
+
 export function CreateReviewTab({
   profile,
   catalog,
@@ -957,15 +993,36 @@ export function CreateReviewTab({
   onRefresh,
   onNavigateTab,
 }: CreateReviewTabProps) {
-  const [selectedTrackId, setSelectedTrackId] = useState<string>(catalog[0]?.id ?? "");
-  const [ingestMode, setIngestMode] = useState<"auto_edit" | "direct_upload">(() =>
-    catalog.some((c) => c.masterAudioPath || c.audioPreviewUrl) ? "auto_edit" : "direct_upload",
-  );
-  const [multiFileBehavior, setMultiFileBehavior] = useState<"mashup" | "separate">("mashup");
-  const [selectedPreset, setSelectedPreset] = useState<EditPreset>(
-    profile.defaultEditPreset || "punchy",
-  );
+  const [selectedTrackId, setSelectedTrackId] = useState<string>(() => {
+    const saved = loadSavedDropPrefs().selectedTrackId;
+    if (saved && catalog.some((c) => c.id === saved)) return saved;
+    return catalog[0]?.id ?? "";
+  });
+  const [ingestMode, setIngestMode] = useState<"auto_edit" | "direct_upload">(() => {
+    const saved = loadSavedDropPrefs().ingestMode;
+    if (saved === "auto_edit" || saved === "direct_upload") return saved;
+    return catalog.some((c) => c.masterAudioPath || c.audioPreviewUrl)
+      ? "auto_edit"
+      : "direct_upload";
+  });
+  const [multiFileBehavior, setMultiFileBehavior] = useState<"mashup" | "separate">(() => {
+    const saved = loadSavedDropPrefs().multiFileBehavior;
+    return saved === "separate" ? "separate" : "mashup";
+  });
+  const [selectedPreset, setSelectedPreset] = useState<EditPreset>(() => {
+    const saved = loadSavedDropPrefs().selectedPreset;
+    if (saved === "subtle" || saved === "punchy" || saved === "hard") return saved;
+    return profile.defaultEditPreset || "punchy";
+  });
+  const [fullAutopilot, setFullAutopilot] = useState<boolean>(() => {
+    const saved = loadSavedDropPrefs().fullAutopilot;
+    return typeof saved === "boolean" ? saved : Boolean(profile.fullAutopilot);
+  });
   const [selectedPlatforms, setSelectedPlatforms] = useState<PublishablePlatform[]>(() => {
+    const saved = loadSavedDropPrefs().selectedPlatforms?.filter((p): p is PublishablePlatform =>
+      PUBLISHABLE_PLATFORMS.includes(p),
+    );
+    if (saved && saved.length > 0) return saved;
     const connected = connections.map((c) => c.platform);
     if (connected.length > 0) return connected;
     const fromProfile = (profile.targetPlatforms ?? []).filter((p): p is PublishablePlatform =>
@@ -973,10 +1030,36 @@ export function CreateReviewTab({
     );
     return fromProfile.length > 0 ? fromProfile : ["youtube_shorts", "instagram_reels", "tiktok"];
   });
+  const [showMobileOptions, setShowMobileOptions] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadCountText, setUploadCountText] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Persist Drop Zone preferences so phone/desktop sessions remember last track & settings
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const prefs: SavedDropPrefs = {
+        selectedTrackId,
+        ingestMode,
+        multiFileBehavior,
+        selectedPreset,
+        selectedPlatforms,
+        fullAutopilot,
+      };
+      window.localStorage.setItem(DROP_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+    } catch {
+      // Ignore storage quota / private mode errors
+    }
+  }, [
+    selectedTrackId,
+    ingestMode,
+    multiFileBehavior,
+    selectedPreset,
+    selectedPlatforms,
+    fullAutopilot,
+  ]);
 
   const reviewPosts = posts.filter(
     (p) =>
@@ -1089,11 +1172,14 @@ export function CreateReviewTab({
             rawClips: uploadedTakes,
             preset: selectedPreset,
             platforms: selectedPlatforms,
+            fullAutopilot,
           },
         });
         await onRefresh();
         toast.success(
-          `Queued ${uploadedTakes.length}-angle beat-cut mashup (${PRESET_LABELS[selectedPreset].label}) for ${selectedTrack.title}!`,
+          fullAutopilot
+            ? `Queued ${uploadedTakes.length}-angle mashup on Full Autopilot — auto-schedules if sync & AI pass!`
+            : `Queued ${uploadedTakes.length}-angle beat-cut mashup (${PRESET_LABELS[selectedPreset].label}) for ${selectedTrack.title}!`,
         );
         return;
       }
@@ -1144,6 +1230,7 @@ export function CreateReviewTab({
               ],
               preset: selectedPreset,
               platforms: selectedPlatforms,
+              fullAutopilot,
             },
           });
         } else {
@@ -1178,7 +1265,9 @@ export function CreateReviewTab({
       await onRefresh();
       toast.success(
         useAutoEdit
-          ? `Queued auto-sync & ${PRESET_LABELS[selectedPreset].label} edit for ${createdCount} clip(s)!`
+          ? fullAutopilot
+            ? `Queued ${createdCount} clip(s) on Full Autopilot — auto-schedules if sync & AI pass!`
+            : `Queued auto-sync & ${PRESET_LABELS[selectedPreset].label} edit for ${createdCount} clip(s)!`
           : `Added ${createdCount} clip(s) to Review Inbox!`,
       );
     } catch (err) {
@@ -1223,53 +1312,87 @@ export function CreateReviewTab({
                 <strong className="text-foreground">{formatSlot(nextAvailableSlot)}</strong>
               </span>
             </div>
-            <h2 className="mt-1.5 text-lg font-bold text-foreground sm:text-xl">
-              Drop raw phone dancing clip(s) → Auto-Sync & Beat-Synced Edit
+            <h2 className="mt-1.5 text-base font-bold text-foreground sm:text-xl">
+              Drop raw dancing clip(s) → Auto-Sync &amp; Edit
             </h2>
-            <p className="text-xs text-muted-foreground">
+            <p className="hidden text-xs text-muted-foreground sm:block">
               Auto-Edit matches your room audio to the master WAV/MP3, swaps clean audio at full
               uptempo loudness ({profile.audioHeadroomDb ?? -1.5} dB trim), and renders beat-synced
-              zooms & shakes.
+              zooms &amp; shakes.
             </p>
           </div>
 
-          {/* Mode Toggle */}
-          <div className="inline-flex border border-border/70 bg-background/80 p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setIngestMode("auto_edit")}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-colors",
-                ingestMode === "auto_edit"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <IconWand className="size-3.5" />
-              Auto-Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setIngestMode("direct_upload")}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-colors",
-                ingestMode === "direct_upload"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <IconVideo className="size-3.5" />
-              Direct Upload
-            </button>
+          {/* Mode Toggle + Full Autopilot Switch */}
+          <div className="flex flex-wrap items-center gap-2">
+            {ingestMode === "auto_edit" ? (
+              <button
+                type="button"
+                onClick={() => setFullAutopilot((v) => !v)}
+                title={
+                  fullAutopilot
+                    ? "Full Autopilot ON: skips Review and auto-schedules when sync >= 35% and Gemini AI succeeds; holds in Review otherwise"
+                    : "Review First: every rendered edit lands in Review Inbox for 1-tap approval"
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-semibold transition-colors",
+                  fullAutopilot
+                    ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-200"
+                    : "border-border/70 bg-background/80 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <IconRocket className="size-3.5" />
+                <span>{fullAutopilot ? "Full Autopilot: ON" : "Review First"}</span>
+              </button>
+            ) : null}
+
+            <div className="inline-flex border border-border/70 bg-background/80 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setIngestMode("auto_edit")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-colors",
+                  ingestMode === "auto_edit"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <IconWand className="size-3.5" />
+                Auto-Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setIngestMode("direct_upload")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-colors",
+                  ingestMode === "direct_upload"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <IconVideo className="size-3.5" />
+                Direct Upload
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Track + FX Preset + Platforms Selector Row */}
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+        {/* Track + FX Preset + Platforms Selector Row (compact collapsible options on mobile) */}
+        <div className="space-y-2.5 sm:space-y-0 sm:grid sm:gap-3 lg:grid-cols-[1fr_auto_auto]">
           <div className="space-y-1">
-            <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-              Track / Demo {ingestMode === "auto_edit" ? "(required for sync)" : ""}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                Track / Demo {ingestMode === "auto_edit" ? "(required for sync)" : ""}
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowMobileOptions((v) => !v)}
+                className="text-[0.68rem] font-semibold text-primary hover:underline sm:hidden"
+              >
+                {showMobileOptions
+                  ? "Hide options"
+                  : `${PRESET_LABELS[selectedPreset].label} · ${selectedPlatforms.length} ch ▾`}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <select
                 value={selectedTrackId}
@@ -1293,7 +1416,12 @@ export function CreateReviewTab({
           </div>
 
           {ingestMode === "auto_edit" ? (
-            <div className="flex flex-wrap items-end gap-3">
+            <div
+              className={cn(
+                "flex-wrap items-end gap-3",
+                showMobileOptions ? "flex" : "hidden sm:flex",
+              )}
+            >
               <div className="space-y-1">
                 <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
                   Beat FX Preset
@@ -1354,7 +1482,7 @@ export function CreateReviewTab({
             </div>
           ) : null}
 
-          <div className="space-y-1">
+          <div className={cn("space-y-1", showMobileOptions ? "block" : "hidden sm:block")}>
             <label className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
               Target Channels
             </label>

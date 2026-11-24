@@ -257,6 +257,33 @@ function escapeDrawtext(text: string): string {
     .trim();
 }
 
+/**
+ * Splits a hook text line into at most 2 balanced lines for crisp 9:16 readability
+ * so longer hooks never clip near the left/right edges of Reels/TikTok/Shorts.
+ */
+function wrapHookOverlayLines(rawText: string, maxCharsPerLine = 26): string[] {
+  const clean = rawText.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 68);
+  if (!clean) return [];
+  if (clean.length <= maxCharsPerLine) return [clean];
+
+  const words = clean.split(" ");
+  if (words.length <= 1) return [clean];
+
+  const targetMid = Math.ceil(clean.length / 2);
+  let bestSplit = 1;
+  let bestDiff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const leftLen = words.slice(0, i).join(" ").length;
+    const diff = Math.abs(leftLen - targetMid);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestSplit = i;
+    }
+  }
+
+  return [words.slice(0, bestSplit).join(" "), words.slice(bestSplit).join(" ")].filter(Boolean);
+}
+
 function findDrawtextFontFile(): string | null {
   const candidates = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -291,7 +318,7 @@ export function buildSingleTakeFiltergraph(
   // Build summed damped exponential expressions for zoom, shake, and flash
   const zoomEvents = recipe.fxEvents.filter((e) => e.type === "punch_zoom").slice(0, 24);
   const shakeEvents = recipe.fxEvents.filter((e) => e.type === "micro_shake").slice(0, 16);
-  const flashEvents = recipe.fxEvents.filter((e) => e.type === "drop_flash").slice(0, 4);
+  const flashEvents = recipe.fxEvents.filter((e) => e.type === "drop_flash").slice(0, 8);
 
   const zoomTerms = zoomEvents.map((e) => {
     const t0 = e.timeSec.toFixed(3);
@@ -350,15 +377,33 @@ export function buildSingleTakeFiltergraph(
     `eq=contrast=${cfg.contrast}:saturation=${cfg.saturation}:brightness='${brightnessExpr}':eval=frame`,
   ];
 
-  // Optional burned-in hook text positioned strictly inside IG/TikTok/Shorts top safe zone
+  // Optional burned-in hook text: crisp bold safe-zone pill with intro fade-in & timed fade-out
   if (recipe.burnHookOverlay && recipe.hookOverlayText) {
-    const escaped = escapeDrawtext(recipe.hookOverlayText).slice(0, 72);
-    const fontFile = findDrawtextFontFile();
-    const fontArg = fontFile ? `fontfile='${fontFile.replaceAll(":", "\\:")}':` : "";
-    const fontSize = Math.max(28, Math.round(width * 0.046));
-    chain.push(
-      `drawtext=${fontArg}text='${escaped}':fontcolor=white:fontsize=${fontSize}:box=1:boxcolor=black@0.48:boxborderw=18:x=(w-text_w)/2:y=h*0.16`,
-    );
+    const lines = wrapHookOverlayLines(recipe.hookOverlayText);
+    if (lines.length > 0) {
+      const fontFile = findDrawtextFontFile();
+      const fontArg = fontFile ? `fontfile='${fontFile.replaceAll(":", "\\:")}':` : "";
+      const fontSize = Math.max(26, Math.round(width * (lines.length > 1 ? 0.042 : 0.047)));
+      const lineStepPx = Math.round(fontSize * 1.42);
+      const fadeInEnd = 0.25;
+      const holdUntil = Math.max(1.8, Math.min(4.2, Number((durationSec * 0.42).toFixed(2))));
+      const fadeOutEnd = Number(Math.min(durationSec, holdUntil + 0.35).toFixed(2));
+      const alphaExpr =
+        `if(lt(t,${fadeInEnd}),t/${fadeInEnd},` +
+        `if(lt(t,${holdUntil}),1,` +
+        `if(lt(t,${fadeOutEnd}),(${fadeOutEnd}-t)/${Math.max(0.05, Number((fadeOutEnd - holdUntil).toFixed(2)))},0)))`;
+
+      lines.forEach((line, idx) => {
+        const escaped = escapeDrawtext(line);
+        const yExpr = `h*0.165+${idx * lineStepPx}`;
+        chain.push(
+          `drawtext=${fontArg}text='${escaped}':fontcolor=white:fontsize=${fontSize}:` +
+            `borderw=2:bordercolor=black@0.65:shadowcolor=black@0.75:shadowx=2:shadowy=3:` +
+            `box=1:boxcolor=0x151124@0.72:boxborderw=20:` +
+            `alpha='${alphaExpr}':x=(w-text_w)/2:y=${yExpr}`,
+        );
+      });
+    }
   }
 
   chain.push("format=yuv420p");
@@ -641,11 +686,13 @@ export function buildMultiTakeEditRecipe(input: MultiTakePlanInput): PostEditRec
     overrideDurationSec: finalDuration,
   });
 
-  // Emphasize angle cut transitions inside drops with subtle punch-zooms
+  // Emphasize angle cut transitions inside drops with punch-zooms + subtle flash snap
   const fxEvents = [...fxReference.fxEvents];
   for (let i = 1; i < segments.length; i++) {
-    const cutRelSec = Number((segments[i]!.masterStartSec - masterStartSec).toFixed(3));
+    const cutMasterSec = segments[i]!.masterStartSec;
+    const cutRelSec = Number((cutMasterSec - masterStartSec).toFixed(3));
     if (cutRelSec > 0.2 && cutRelSec < finalDuration - 0.2) {
+      const cutInDrop = isInDrop(cutMasterSec);
       const hasNearbyZoom = fxEvents.some(
         (e) => e.type === "punch_zoom" && Math.abs(e.timeSec - cutRelSec) < 0.22,
       );
@@ -653,8 +700,20 @@ export function buildMultiTakeEditRecipe(input: MultiTakePlanInput): PostEditRec
         fxEvents.push({
           timeSec: cutRelSec,
           type: "punch_zoom",
-          intensity: isInDrop(segments[i]!.masterStartSec) ? 0.78 : 0.45,
+          intensity: cutInDrop ? 0.78 : 0.45,
         });
+      }
+      if (cutInDrop) {
+        const hasNearbyFlash = fxEvents.some(
+          (e) => e.type === "drop_flash" && Math.abs(e.timeSec - cutRelSec) < 0.35,
+        );
+        if (!hasNearbyFlash) {
+          fxEvents.push({
+            timeSec: cutRelSec,
+            type: "drop_flash",
+            intensity: 0.48,
+          });
+        }
       }
     }
   }

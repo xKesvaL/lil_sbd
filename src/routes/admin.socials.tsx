@@ -7,17 +7,21 @@ import {
   IconPlugConnected,
   IconSparkles,
 } from "@tabler/icons-react";
-import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
-import { AutopilotQueueTab } from "#/containers/admin/socials/autopilot-queue-tab";
-import { CreateReviewTab } from "#/containers/admin/socials/create-review-tab";
 import {
   PLATFORM_META,
   PUBLISHABLE_PLATFORMS,
 } from "#/containers/admin/socials/social-constants";
-import { TracksSettingsTab } from "#/containers/admin/socials/tracks-settings-tab";
 import { signOut } from "#/lib/auth-client";
 import { cn } from "#/lib/utils";
 import { getStudioDashboardServerFn } from "#/server/socials";
@@ -30,21 +34,27 @@ export const Route = createFileRoute("/admin/socials")({
       throw redirect({ to: "/admin/login" });
     }
   },
-  component: SocialAutopilotStudioPage,
+  component: SocialAutopilotStudioLayout,
 });
 
-type StudioTab = "create" | "queue" | "settings";
+type StudioRoutePath = "/admin/socials" | "/admin/socials/queue" | "/admin/socials/settings";
 
-function SocialAutopilotStudioPage() {
+function resolveActivePath(pathname: string): StudioRoutePath {
+  if (pathname.startsWith("/admin/socials/queue")) return "/admin/socials/queue";
+  if (pathname.startsWith("/admin/socials/settings")) return "/admin/socials/settings";
+  return "/admin/socials";
+}
+
+function SocialAutopilotStudioLayout() {
   const data = Route.useLoaderData();
-  const router = useRouter();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const activePath = resolveActivePath(pathname);
 
-  const [activeTab, setActiveTab] = useState<StudioTab>("create");
-
-  // Handle OAuth callback query parameters
+  // Backward-compatible redirect for legacy ?tab=... or OAuth links hitting /admin/socials
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (pathname !== "/admin/socials" && pathname !== "/admin/socials/") return;
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
     const connected = params.get("connected");
@@ -52,22 +62,19 @@ function SocialAutopilotStudioPage() {
     const setup = params.get("setup");
 
     if (tabParam === "settings" || connected || oauthErr || setup) {
-      setActiveTab("settings");
+      const nextSearch = new URLSearchParams();
+      if (connected) nextSearch.set("connected", connected);
+      if (oauthErr) nextSearch.set("oauth_error", oauthErr);
+      if (setup) nextSearch.set("setup", setup);
+      const qs = nextSearch.toString();
+      void navigate({
+        href: qs ? `/admin/socials/settings?${qs}` : "/admin/socials/settings",
+        replace: true,
+      });
     } else if (tabParam === "queue") {
-      setActiveTab("queue");
+      void navigate({ to: "/admin/socials/queue", replace: true });
     }
-    if (connected) {
-      toast.success(`Connected ${connected.replace("_", " ")} account!`);
-      window.history.replaceState({}, "", "/admin/socials");
-    } else if (oauthErr) {
-      toast.error(`OAuth error: ${oauthErr}`);
-      window.history.replaceState({}, "", "/admin/socials");
-    }
-  }, []);
-
-  const refreshStudioData = async () => {
-    await router.invalidate();
-  };
+  }, [navigate, pathname]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -90,34 +97,36 @@ function SocialAutopilotStudioPage() {
   );
 
   const navItems: Array<{
-    id: StudioTab;
+    to: StudioRoutePath;
     label: string;
     shortLabel: string;
     badge?: number | string;
     Icon: typeof IconSparkles;
   }> = [
     {
-      id: "create",
+      to: "/admin/socials",
       label: "Create & Review",
       shortLabel: "Create",
       badge: reviewCount > 0 ? reviewCount : undefined,
       Icon: IconSparkles,
     },
     {
-      id: "queue",
+      to: "/admin/socials/queue",
       label: "Autopilot Queue",
       shortLabel: "Queue",
       badge: queuedCount > 0 ? queuedCount : undefined,
       Icon: IconCalendarClock,
     },
     {
-      id: "settings",
+      to: "/admin/socials/settings",
       label: "Tracks & Settings",
       shortLabel: "Settings",
       badge: `${data.connections.length}/3`,
       Icon: IconPlugConnected,
     },
   ];
+
+  const activeItem = navItems.find((n) => n.to === activePath) ?? navItems[0]!;
 
   return (
     <div className="flex min-h-screen bg-background/40 pb-20 lg:pb-0">
@@ -137,15 +146,14 @@ function SocialAutopilotStudioPage() {
             </div>
           </div>
 
-          {/* 3-Tab Navigation */}
+          {/* 3-Route Navigation */}
           <nav className="space-y-1">
             {navItems.map((item) => {
-              const active = activeTab === item.id;
+              const active = activePath === item.to;
               return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
+                <Link
+                  key={item.to}
+                  to={item.to}
                   className={cn(
                     "flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors",
                     active
@@ -169,7 +177,7 @@ function SocialAutopilotStudioPage() {
                       {item.badge}
                     </span>
                   ) : null}
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -180,13 +188,12 @@ function SocialAutopilotStudioPage() {
               <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 Direct Channels
               </span>
-              <button
-                type="button"
-                onClick={() => setActiveTab("settings")}
+              <Link
+                to="/admin/socials/settings"
                 className="text-[0.68rem] text-primary hover:underline"
               >
                 Configure
-              </button>
+              </Link>
             </div>
             <div className="space-y-1.5">
               {PUBLISHABLE_PLATFORMS.map((p) => {
@@ -272,11 +279,9 @@ function SocialAutopilotStudioPage() {
               className="size-7 shrink-0 border border-white/10 lg:hidden"
             />
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold sm:text-xl">
-                {navItems.find((n) => n.id === activeTab)?.label}
-              </h1>
+              <h1 className="truncate text-base font-bold sm:text-xl">{activeItem.label}</h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
-                {data.profile.stageName} • Drop clips → 1-tap Review → Automatic Multi-Platform
+                {data.profile.stageName} • Drop clips → Auto-Edit → Automatic Multi-Platform
                 Publishing
               </p>
             </div>
@@ -288,7 +293,8 @@ function SocialAutopilotStudioPage() {
                 size="xs"
                 variant="outline"
                 className="border-amber-500/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
-                onClick={() => setActiveTab("settings")}
+                nativeButton={false}
+                render={<Link to="/admin/socials/settings" />}
               >
                 <IconAlertTriangle className="size-3.5" />
                 <span className="hidden sm:inline">Token Attention</span>
@@ -317,61 +323,20 @@ function SocialAutopilotStudioPage() {
           </div>
         </header>
 
-        {/* Active Tab Workspace */}
+        {/* Active Child Route Workspace */}
         <div className="mx-auto w-full max-w-[1400px] flex-1 p-4 sm:p-6 lg:p-8">
-          {activeTab === "create" ? (
-            <CreateReviewTab
-              profile={data.profile}
-              catalog={data.catalog}
-              posts={data.posts}
-              rawClips={data.rawClips}
-              connections={data.connections}
-              hashtagPresets={data.hashtagPresets}
-              recentJobs={data.recentJobs}
-              nextAvailableSlot={data.nextAvailableSlot}
-              geminiStatus={data.geminiStatus}
-              onRefresh={refreshStudioData}
-              onNavigateTab={(t) => setActiveTab(t)}
-            />
-          ) : null}
-
-          {activeTab === "queue" ? (
-            <AutopilotQueueTab
-              profile={data.profile}
-              posts={data.posts}
-              catalog={data.catalog}
-              connections={data.connections}
-              recentJobs={data.recentJobs}
-              onRefresh={refreshStudioData}
-              onNavigateTab={(t) => setActiveTab(t)}
-            />
-          ) : null}
-
-          {activeTab === "settings" ? (
-            <TracksSettingsTab
-              profile={data.profile}
-              catalog={data.catalog}
-              hashtagPresets={data.hashtagPresets}
-              connections={data.connections}
-              oauthEnvConfigured={data.oauthEnvConfigured}
-              storageStats={data.storageStats}
-              diagnostics={data.diagnostics}
-              recentJobs={data.recentJobs}
-              onRefresh={refreshStudioData}
-            />
-          ) : null}
+          <Outlet />
         </div>
       </div>
 
-      {/* Mobile Bottom 3-Tab Bar */}
+      {/* Mobile Bottom 3-Route Bar */}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-border/80 bg-background/95 backdrop-blur-2xl lg:hidden">
         {navItems.map((item) => {
-          const active = activeTab === item.id;
+          const active = activePath === item.to;
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id)}
+            <Link
+              key={item.to}
+              to={item.to}
               className={cn(
                 "relative flex flex-col items-center justify-center gap-1 py-2.5 text-[0.7rem] font-medium transition-colors",
                 active
@@ -381,7 +346,7 @@ function SocialAutopilotStudioPage() {
             >
               <item.Icon className={cn("size-4.5", active && "text-primary")} />
               <span className="truncate">{item.shortLabel}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>

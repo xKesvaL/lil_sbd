@@ -300,6 +300,83 @@ export function computeRebalancedQueue(params: {
   }));
 }
 
+export const FULL_AUTOPILOT_MIN_SYNC_CONFIDENCE = 0.35;
+
+export interface FullAutopilotEvaluation {
+  requested: boolean;
+  approved: boolean;
+  minSyncConfidence: number;
+  aiSource: "gemini" | "deterministic_fallback" | "skipped";
+  holdReason?: string;
+}
+
+/**
+ * Smart safety net for Full Autopilot mode:
+ * Auto-approves and queues a rendered clip ONLY when every take achieved solid acoustic
+ * sync (>= 35% confidence) AND Gemini AI direction succeeded (no fallback template copy).
+ * Otherwise holds the clip in the Review Inbox with an explicit reason.
+ */
+export function evaluateFullAutopilotSafetyNet(params: {
+  fullAutopilotRequested: boolean;
+  syncConfidences: number[];
+  aiSource: "gemini" | "deterministic_fallback" | "skipped";
+  aiFallbackReason?: string;
+  minSyncConfidenceThreshold?: number;
+}): FullAutopilotEvaluation {
+  const threshold = params.minSyncConfidenceThreshold ?? FULL_AUTOPILOT_MIN_SYNC_CONFIDENCE;
+  const minSyncConfidence =
+    params.syncConfidences.length > 0
+      ? Number(Math.min(...params.syncConfidences).toFixed(3))
+      : 0;
+
+  if (!params.fullAutopilotRequested) {
+    return {
+      requested: false,
+      approved: false,
+      minSyncConfidence,
+      aiSource: params.aiSource,
+    };
+  }
+
+  const syncOk = params.syncConfidences.length > 0 && minSyncConfidence >= threshold;
+  const aiOk = params.aiSource === "gemini";
+
+  if (syncOk && aiOk) {
+    return {
+      requested: true,
+      approved: true,
+      minSyncConfidence,
+      aiSource: params.aiSource,
+    };
+  }
+
+  const syncPct = Math.round(minSyncConfidence * 100);
+  const thresholdPct = Math.round(threshold * 100);
+  const aiDetail = params.aiFallbackReason?.trim()
+    ? ` (${params.aiFallbackReason.trim().slice(0, 90)})`
+    : "";
+
+  const reasons: string[] = [];
+  if (!syncOk) {
+    reasons.push(`Low audio sync (${syncPct}% < ${thresholdPct}% threshold)`);
+  }
+  if (!aiOk) {
+    reasons.push(
+      params.aiSource === "skipped"
+        ? "AI Director was skipped"
+        : `Gemini AI fell back to template copy${aiDetail}`,
+    );
+  }
+
+  return {
+    requested: true,
+    approved: false,
+    minSyncConfidence,
+    aiSource: params.aiSource,
+    holdReason: reasons.join(" • "),
+  };
+}
+
 /**
  * Scans for approved, auto-publish posts whose scheduledFor <= now and enqueues
  * a persistent `publish_post` background job (deduplicated so a post is never double-enqueued).

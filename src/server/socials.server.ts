@@ -32,6 +32,7 @@ import {
   enqueueDueAutopilotPosts,
   findNextAvailableSlot,
 } from "./autopilot-scheduler.server";
+import { isValidDiscordWebhookUrl, sendTestDiscordAlert } from "./discord-alerts.server";
 import { rerollCopyWithGemini, resolveGeminiConfig } from "./gemini-director.server";
 import {
   enqueueJob,
@@ -230,7 +231,11 @@ export async function getStudioDashboardImpl() {
       configured: Boolean(geminiCfg.apiKey),
       model: geminiCfg.model,
     },
-    diagnostics: getSystemReadinessDiagnostics(Boolean(geminiCfg.apiKey), geminiCfg.model),
+    diagnostics: getSystemReadinessDiagnostics(
+      Boolean(geminiCfg.apiKey),
+      geminiCfg.model,
+      isValidDiscordWebhookUrl(profileRows[0]?.discordWebhookUrl ?? ""),
+    ),
   };
 }
 
@@ -246,6 +251,7 @@ export async function updateArtistProfileImpl(data: {
   cadenceDays?: number[];
   cadenceTime?: string;
   avoidConsecutiveTrack?: boolean;
+  fullAutopilot?: boolean;
   defaultEditPreset?: "subtle" | "punchy" | "hard";
   burnHookOverlay?: boolean;
   audioHeadroomDb?: number;
@@ -253,9 +259,18 @@ export async function updateArtistProfileImpl(data: {
   renderedRetentionDays?: number;
   storageCapGb?: number;
   geminiModel?: string;
+  discordWebhookUrl?: string;
 }) {
   const session = await requireSessionImpl();
   const userId = session.user.id;
+
+  if (data.discordWebhookUrl !== undefined && data.discordWebhookUrl.trim() !== "") {
+    if (!isValidDiscordWebhookUrl(data.discordWebhookUrl)) {
+      throw new Error(
+        "Discord webhook URL must start with https://discord.com/api/webhooks/...",
+      );
+    }
+  }
 
   await db
     .update(artistProfiles)
@@ -273,6 +288,7 @@ export async function updateArtistProfileImpl(data: {
       ...(data.avoidConsecutiveTrack !== undefined
         ? { avoidConsecutiveTrack: data.avoidConsecutiveTrack }
         : {}),
+      ...(data.fullAutopilot !== undefined ? { fullAutopilot: data.fullAutopilot } : {}),
       ...(data.defaultEditPreset !== undefined
         ? { defaultEditPreset: data.defaultEditPreset }
         : {}),
@@ -284,11 +300,33 @@ export async function updateArtistProfileImpl(data: {
         : {}),
       ...(data.storageCapGb !== undefined ? { storageCapGb: data.storageCapGb } : {}),
       ...(data.geminiModel !== undefined ? { geminiModel: data.geminiModel } : {}),
+      ...(data.discordWebhookUrl !== undefined
+        ? { discordWebhookUrl: data.discordWebhookUrl.trim() }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(artistProfiles.userId, userId));
 
   return { ok: true };
+}
+
+export async function testDiscordWebhookImpl(data: { webhookUrl?: string }) {
+  const session = await requireSessionImpl();
+  const userId = session.user.id;
+
+  const profileRows = await db
+    .select()
+    .from(artistProfiles)
+    .where(eq(artistProfiles.userId, userId))
+    .limit(1);
+  const profile = profileRows[0];
+
+  const targetUrl = (data.webhookUrl ?? profile?.discordWebhookUrl ?? "").trim();
+  if (!targetUrl) {
+    return { ok: false, error: "Paste a Discord webhook URL first." };
+  }
+
+  return sendTestDiscordAlert(targetUrl, profile?.stageName || "LIL SBD");
 }
 
 export async function createAutopilotDraftImpl(data: {
@@ -572,6 +610,7 @@ export async function createAutoEditPostImpl(data: {
   platforms?: PublishablePlatform[];
   burnHookOverlay?: boolean;
   hookOverlayText?: string;
+  fullAutopilot?: boolean;
 }) {
   const session = await requireSessionImpl();
   const userId = session.user.id;
@@ -683,6 +722,7 @@ export async function createAutoEditPostImpl(data: {
       preset,
       burnHookOverlay: data.burnHookOverlay ?? profile?.burnHookOverlay ?? false,
       hookOverlayText: data.hookOverlayText?.trim() || "",
+      fullAutopilot: data.fullAutopilot ?? profile?.fullAutopilot ?? false,
     },
     maxAttempts: 2,
   });

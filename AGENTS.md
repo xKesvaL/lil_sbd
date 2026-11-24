@@ -4,7 +4,8 @@ Never write in fr or de.json unless asked for.
 
 - Lil SBD is the user's artist project.
 - Music direction: uptempo hardcore, with emphasis on zaag kicks and a more musical backbone.
-- Site purpose: present who Lil SBD is, showcase the music, and promote a free production course.
+- Site purpose: present who Lil SBD is and showcase the music.
+- The free production course is no longer active: do not delete existing course files or code, but never mention, promote, or reference the free course anywhere in UI, copy, or AI prompts.
 - Tone: professional, human, direct, and not corny.
 
 - Stack: TanStack Start, React 19, Vite+, shadcn/base UI, Tailwind v4, Paraglide i18n, Bun.

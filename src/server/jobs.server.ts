@@ -9,6 +9,7 @@ import {
   backgroundJobs,
   type EditPreset,
   type JsonRecord,
+  type PlatformDeliveries,
   type PublishablePlatform,
   socialPosts,
   socialRawClips,
@@ -19,10 +20,24 @@ import {
   resolveCatalogAudioFile,
 } from "./audio-analysis.server";
 import { syncRawClipFileToMasterFile } from "./audio-sync.server";
-import { enqueueDueAutopilotPosts } from "./autopilot-scheduler.server";
+import {
+  enqueueDueAutopilotPosts,
+  evaluateFullAutopilotSafetyNet,
+  findNextAvailableSlot,
+} from "./autopilot-scheduler.server";
+import {
+  notifyClipHeldForReview,
+  notifyPublishFailed,
+  notifyTikTokInboxReady,
+  scanAndNotifyExpiringTokens,
+} from "./discord-alerts.server";
 import { directClipWithGemini } from "./gemini-director.server";
 import { runMediaLifecycleCleanup } from "./media-cleanup.server";
-import { isPublishablePlatform, publishSocialPostToPlatforms } from "./social-publisher.server";
+import {
+  assemblePostCaption,
+  isPublishablePlatform,
+  publishSocialPostToPlatforms,
+} from "./social-publisher.server";
 import {
   buildMultiTakeEditRecipe,
   buildSingleTakeEditRecipe,
@@ -206,6 +221,17 @@ export function ensureDefaultJobHandlersRegistered(): void {
 
     await setProgress(45, `Uploading to ${pendingPlatforms.join(", ")}...`);
     const result = await publishSocialPostToPlatforms(post.id, job.userId, pendingPlatforms);
+
+    if (
+      pendingPlatforms.includes("tiktok") &&
+      result.deliveries.tiktok?.status === "inbox_ready"
+    ) {
+      await notifyTikTokInboxReady({
+        userId: job.userId,
+        postTitle: post.title,
+        captionPreview: assemblePostCaption(post),
+      });
+    }
 
     if (!result.allSucceeded) {
       const errors = pendingPlatforms
@@ -504,13 +530,62 @@ export function ensureDefaultJobHandlersRegistered(): void {
             fps: renderFps,
           });
 
-      await setProgress(94, "Finalizing review preview...");
+      await setProgress(94, "Evaluating Autopilot safety net & finalizing...");
       const nextTitle = aiDirectionResult?.direction.title || post.title;
       const nextCaption = aiDirectionResult?.direction.caption || post.captionEn;
       const nextHashtags =
         aiDirectionResult?.direction.hashtags?.length
           ? aiDirectionResult.direction.hashtags
           : post.hashtags;
+
+      const fullAutopilotRequested =
+        !skipAiDirector &&
+        (typeof job.payload?.fullAutopilot === "boolean"
+          ? job.payload.fullAutopilot
+          : Boolean(profile?.fullAutopilot));
+
+      const autopilotEval = evaluateFullAutopilotSafetyNet({
+        fullAutopilotRequested,
+        syncConfidences: syncedClips.map((c) => c.syncConfidence),
+        aiSource: aiDirectionResult?.source ?? "skipped",
+        aiFallbackReason: aiDirectionResult?.fallbackReason,
+      });
+
+      recipe.autopilotEvaluation = {
+        ...autopilotEval,
+        evaluatedAt: new Date().toISOString(),
+      };
+
+      let nextScheduledFor = post.scheduledFor;
+      let nextDeliveries: PlatformDeliveries = { ...(post.platformDeliveries ?? {}) };
+
+      if (autopilotEval.approved) {
+        if (
+          !nextScheduledFor ||
+          Number.isNaN(new Date(nextScheduledFor).getTime()) ||
+          new Date(nextScheduledFor).getTime() < Date.now() + 60_000
+        ) {
+          const allUserPosts = await db
+            .select()
+            .from(socialPosts)
+            .where(eq(socialPosts.userId, job.userId));
+          nextScheduledFor = findNextAvailableSlot({
+            profile,
+            existingPosts: allUserPosts,
+            catalogItemId: post.catalogItemId,
+            excludePostId: post.id,
+          });
+        }
+        for (const p of (post.platforms ?? []).filter(isPublishablePlatform)) {
+          const cur = nextDeliveries[p]?.status;
+          if (!cur || cur === "idle" || cur === "failed") {
+            nextDeliveries[p] = {
+              status: "scheduled",
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        }
+      }
 
       await db
         .update(socialPosts)
@@ -525,7 +600,10 @@ export function ensureDefaultJobHandlersRegistered(): void {
           thumbnailUrl: rendered.thumbnailUrl,
           editMode: isMultiTake ? "multi_take" : "single_take",
           editRecipe: recipe,
-          reviewStatus: "needs_review",
+          reviewStatus: autopilotEval.approved ? "approved" : "needs_review",
+          autoPublish: autopilotEval.approved,
+          scheduledFor: nextScheduledFor,
+          platformDeliveries: nextDeliveries,
           status: "ready",
           onScreenHookEn: hookOverlayText || post.onScreenHookEn,
           onScreenHookFr: hookOverlayText || post.onScreenHookFr,
@@ -533,7 +611,24 @@ export function ensureDefaultJobHandlersRegistered(): void {
         })
         .where(eq(socialPosts.id, post.id));
 
-      await setProgress(100, "Ready for 1-tap review!");
+      await setProgress(
+        100,
+        autopilotEval.approved
+          ? "Auto-approved & queued for Autopilot!"
+          : autopilotEval.holdReason
+            ? "Held in Review Inbox (safety check)"
+            : "Ready for 1-tap review!",
+      );
+
+      if (autopilotEval.requested && !autopilotEval.approved && autopilotEval.holdReason) {
+        await notifyClipHeldForReview({
+          userId: job.userId,
+          postTitle: nextTitle,
+          trackTitle: track.title,
+          reason: autopilotEval.holdReason,
+        });
+      }
+
       return {
         postId: post.id,
         videoUrl: rendered.videoUrl,
@@ -544,6 +639,8 @@ export function ensureDefaultJobHandlersRegistered(): void {
         takeCount: syncedClips.length,
         cutCount: recipe.segments.length,
         aiSource: aiDirectionResult?.source ?? "skipped",
+        autoApproved: autopilotEval.approved,
+        holdReason: autopilotEval.holdReason ?? null,
       };
     } finally {
       if (masterFile.isTemporary && existsSync(masterFile.localPath)) {
@@ -738,12 +835,41 @@ async function executeClaimedJob(job: BackgroundJobRecord): Promise<BackgroundJo
       .where(eq(backgroundJobs.id, job.id))
       .returning();
 
-    // If a render_video job exhausts retries, flip post reviewStatus to "failed" so UI surfaces it cleanly
+    // If a render_video job exhausts retries, flip post reviewStatus to "failed" and ping Discord
     if (!shouldRetry && job.jobType === "render_video" && job.postId) {
-      await db
+      const [failedPost] = await db
         .update(socialPosts)
         .set({ reviewStatus: "failed", updatedAt: new Date() })
-        .where(eq(socialPosts.id, job.postId));
+        .where(eq(socialPosts.id, job.postId))
+        .returning({ title: socialPosts.title });
+
+      await notifyClipHeldForReview({
+        userId: job.userId,
+        postTitle: failedPost?.title || job.stageLabel || "Auto-edit clip",
+        reason: `Auto-edit failed after ${job.maxAttempts} attempt(s): ${message}`,
+      });
+    }
+
+    // If a publish_post job exhausts retries, alert Discord so the user can retry or reconnect
+    if (!shouldRetry && job.jobType === "publish_post" && job.postId) {
+      const [failedPost] = await db
+        .select({ title: socialPosts.title, platforms: socialPosts.platforms })
+        .from(socialPosts)
+        .where(eq(socialPosts.id, job.postId))
+        .limit(1);
+
+      const platforms = Array.isArray(job.payload?.platforms)
+        ? (job.payload.platforms as string[]).filter((p): p is PublishablePlatform =>
+            isPublishablePlatform(p as PublishablePlatform),
+          )
+        : (failedPost?.platforms ?? []).filter(isPublishablePlatform);
+
+      await notifyPublishFailed({
+        userId: job.userId,
+        postTitle: failedPost?.title || "Scheduled post",
+        errorSummary: message,
+        platforms,
+      });
     }
 
     return updated ?? job;
@@ -813,34 +939,78 @@ export async function listActiveJobsForUser(userId: string): Promise<BackgroundJ
 
 let lastAutopilotScanMs = 0;
 let lastMediaCleanupMs = 0;
+let lastTokenHealthScanMs = 0;
 
-async function workerTick(): Promise<void> {
-  if (globalForWorker.__lilSbdWorkerBusy) return;
+export interface WorkerTickSummary {
+  enqueuedAutopilotPosts: number;
+  jobsProcessed: number;
+  tokenAlertsSent: number;
+  skippedBusy: boolean;
+}
+
+export async function runWorkerTickNow(options?: {
+  forceAutopilotScan?: boolean;
+  forceTokenCheck?: boolean;
+  maxJobs?: number;
+}): Promise<WorkerTickSummary> {
+  if (globalForWorker.__lilSbdWorkerBusy) {
+    return {
+      enqueuedAutopilotPosts: 0,
+      jobsProcessed: 0,
+      tokenAlertsSent: 0,
+      skippedBusy: true,
+    };
+  }
   globalForWorker.__lilSbdWorkerBusy = true;
+  let enqueuedAutopilotPosts = 0;
+  let jobsProcessed = 0;
+  let tokenAlertsSent = 0;
+
   try {
-    // Check due autopilot posts every 30s and enqueue persistent publish_post jobs
     const nowMs = Date.now();
-    if (nowMs - lastAutopilotScanMs >= 30_000) {
+    const nowDate = new Date(nowMs);
+
+    // Check due autopilot posts every 30s (or immediately when triggered by /api/socials/cron)
+    if (options?.forceAutopilotScan || nowMs - lastAutopilotScanMs >= 30_000) {
       lastAutopilotScanMs = nowMs;
-      await enqueueDueAutopilotPosts(new Date(nowMs));
+      enqueuedAutopilotPosts = await enqueueDueAutopilotPosts(nowDate);
+    }
+
+    // Scan expiring/expired platform tokens every 6h (deduplicated per-token every 24h)
+    if (options?.forceTokenCheck || nowMs - lastTokenHealthScanMs >= 6 * 3600_000) {
+      lastTokenHealthScanMs = nowMs;
+      tokenAlertsSent = await scanAndNotifyExpiringTokens(nowDate);
     }
 
     // Run conveyor-belt media lifecycle cleanup every 12 hours
     if (nowMs - lastMediaCleanupMs >= 12 * 3600_000) {
       lastMediaCleanupMs = nowMs;
-      await runMediaLifecycleCleanup({ now: new Date(nowMs) });
+      await runMediaLifecycleCleanup({ now: nowDate });
     }
 
-    // Process up to 3 jobs per tick so queue drains smoothly
-    for (let i = 0; i < 3; i++) {
+    // Process up to maxJobs (default 3) per tick so queue drains smoothly
+    const maxJobs = Math.max(1, Math.min(10, options?.maxJobs ?? 3));
+    for (let i = 0; i < maxJobs; i++) {
       const processed = await processNextJob();
       if (!processed) break;
+      jobsProcessed++;
     }
   } catch (err) {
     console.error("[BackgroundWorker] Tick error:", err);
   } finally {
     globalForWorker.__lilSbdWorkerBusy = false;
   }
+
+  return {
+    enqueuedAutopilotPosts,
+    jobsProcessed,
+    tokenAlertsSent,
+    skippedBusy: false,
+  };
+}
+
+async function workerTick(): Promise<void> {
+  await runWorkerTickNow();
 }
 
 // Always point globalThis.__lilSbdWorkerTick and legacy handler map to this module's latest code (HMR-safe!)

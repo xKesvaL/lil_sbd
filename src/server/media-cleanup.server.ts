@@ -27,6 +27,8 @@ export interface SystemReadinessDiagnostics {
   storageMode: "s3_r2" | "local_nvme";
   geminiConfigured: boolean;
   geminiModel: string;
+  cronSecretConfigured: boolean;
+  discordWebhookConfigured: boolean;
 }
 
 let cachedFfmpegAvailable: boolean | null = null;
@@ -45,6 +47,7 @@ export function checkFfmpegAvailable(): boolean {
 export function getSystemReadinessDiagnostics(
   geminiConfigured: boolean,
   geminiModel: string,
+  discordWebhookConfigured = false,
 ): SystemReadinessDiagnostics {
   const publicBaseUrl = (
     process.env.PUBLIC_APP_URL?.trim() ||
@@ -64,6 +67,8 @@ export function getSystemReadinessDiagnostics(
     storageMode: getStorageMode(),
     geminiConfigured,
     geminiModel,
+    cronSecretConfigured: Boolean(process.env.CRON_SECRET?.trim()),
+    discordWebhookConfigured,
   };
 }
 

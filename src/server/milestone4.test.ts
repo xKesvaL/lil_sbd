@@ -173,7 +173,9 @@ describe("Milestone 4 — Token-Efficient Gemini AI Director & Copywriter", () =
       expect(calledUrl).toContain("gemini-4-hydrogen:generateContent");
       expect(directed.source).toBe("gemini");
       expect(directed.direction.recommendedPreset).toBe("hard");
-      expect(directed.direction.recommendedMasterStartSec).toBe(40);
+      // Strictly respects activeDancingStartSec (38 + 2.5 = 40.5) & activeDancingEndSec (38 + 13 = 51.0)
+      expect(directed.direction.recommendedMasterStartSec).toBe(40.5);
+      expect(directed.direction.recommendedDurationSec).toBe(10.5);
       expect(directed.direction.hashtags).toEqual(["#uptempohardcore", "#zaagkick", "#lilsbd"]);
 
       // Test copy-only fast re-roll

@@ -243,6 +243,14 @@ export interface PostEditRecipe {
     fallbackReason?: string;
     directedAt: string;
   };
+  autopilotEvaluation?: {
+    requested: boolean;
+    approved: boolean;
+    minSyncConfidence: number;
+    aiSource: "gemini" | "deterministic_fallback" | "skipped";
+    holdReason?: string;
+    evaluatedAt: string;
+  };
 }
 
 // ============================================================================
@@ -287,6 +295,7 @@ export const artistProfiles = pgTable("artist_profiles", {
   cadenceDays: jsonb("cadence_days").$type<number[]>().notNull().default([1, 3, 5, 0]),
   cadenceTime: text("cadence_time").notNull().default("18:00"),
   avoidConsecutiveTrack: boolean("avoid_consecutive_track").notNull().default(true),
+  fullAutopilot: boolean("full_autopilot").notNull().default(false),
   defaultEditPreset: text("default_edit_preset").$type<EditPreset>().notNull().default("punchy"),
   burnHookOverlay: boolean("burn_hook_overlay").notNull().default(false),
   audioHeadroomDb: doublePrecision("audio_headroom_db").notNull().default(-1.5),
@@ -294,6 +303,7 @@ export const artistProfiles = pgTable("artist_profiles", {
   renderedRetentionDays: integer("rendered_retention_days").notNull().default(90),
   storageCapGb: integer("storage_cap_gb").notNull().default(8),
   geminiModel: text("gemini_model").notNull().default(""),
+  discordWebhookUrl: text("discord_webhook_url").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
