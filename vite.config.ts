@@ -35,7 +35,7 @@ const config = defineConfig({
       strategy: ["url", "cookie", "preferredLanguage", "baseLocale"],
       urlPatterns: translatedPathnames,
     }),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+    nitro({ preset: "bun", rollupConfig: { external: [/^@sentry\//] } }),
     tailwindcss(),
     tanstackStart({
       router: {

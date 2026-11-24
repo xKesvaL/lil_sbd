@@ -375,7 +375,7 @@ Follow these exact field-by-field steps when deploying on Coolify.
 1. Click **+ New Resource → Public/Private Git Repository** and select this repo.
 2. Set these exact values under **Configuration → General**:
    - **Build Pack**: `Dockerfile`
-   - **Dockerfile Location**: `/Dockerfile` *(already bundles Bun build, Node 22 runtime, native `ffmpeg`/`ffprobe`, and DejaVu fonts)*
+   - **Dockerfile Location**: `/Dockerfile` *(already bundles Bun build + Bun runtime, native `ffmpeg`/`ffprobe`, and DejaVu fonts)*
    - **Domains**: `https://lilsbd.com` *(HTTPS is mandatory for Instagram Reels and OAuth callbacks)*
    - **Network → Ports Exposes**: `3000` *(matches `ENV PORT=3000` & `EXPOSE 3000` in [`Dockerfile`](./Dockerfile))*
 
@@ -461,9 +461,9 @@ Go to **Configuration → Scheduled Tasks → + Add**:
 - **Container Name**: *(leave blank — targets your app container automatically)*
 - **Command**:
   ```sh
-  node -e "fetch('http://127.0.0.1:3000/api/socials/cron',{method:'POST',headers:{Authorization:'Bearer '+process.env.CRON_SECRET}}).then(async r=>{const t=await r.text();console.log(r.status,t);if(!r.ok)process.exit(1)})"
+  bun -e "fetch('http://127.0.0.1:3000/api/socials/cron',{method:'POST',headers:{Authorization:'Bearer '+process.env.CRON_SECRET}}).then(async r=>{const t=await r.text();console.log(r.status,t);if(!r.ok)process.exit(1)})"
   ```
-  *(Uses `node` directly instead of `curl` because the slim `node:22-bookworm-slim` image doesn't bundle `curl`, and reads `CRON_SECRET` straight from the container environment without hardcoding it.)*
+  *(Uses `bun` directly instead of `curl` because the slim `oven/bun:1.3-slim` image doesn't bundle `curl`, and reads `CRON_SECRET` straight from the container environment without hardcoding it.)*
 
 *(Alternatively, ping `POST https://lilsbd.com/api/socials/cron` with header `Authorization: Bearer <CRON_SECRET>` from an external monitor like Uptime Kuma.)*
 
