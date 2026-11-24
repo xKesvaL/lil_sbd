@@ -6,7 +6,9 @@ import { auth } from "#/lib/auth";
 import { isPublishablePlatform } from "#/server/social-publisher.server";
 
 function getBaseUrl(request: Request): string {
-  const envUrl = process.env.PUBLIC_APP_URL?.trim() || process.env.BETTER_AUTH_URL?.trim();
+  const envUrl = (process.env.PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
   if (envUrl) return envUrl.replace(/\/$/, "");
   const u = new URL(request.url);
   return `${u.protocol}//${u.host}`;
@@ -67,29 +69,41 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
               );
             }
 
-            // Generate PKCE code_verifier & hex-encoded SHA-256 code_challenge
-            // so TikTok "Desktop" platform works directly with http://localhost:3000 (zero tunnels!)
-            const verifierBytes = new Uint8Array(32);
-            crypto.getRandomValues(verifierBytes);
-            const codeVerifier = Array.from(verifierBytes, (b) =>
-              b.toString(16).padStart(2, "0"),
-            ).join("");
-            const digest = await crypto.subtle.digest(
-              "SHA-256",
-              new TextEncoder().encode(codeVerifier),
-            );
-            const codeChallenge = Array.from(new Uint8Array(digest), (b) =>
-              b.toString(16).padStart(2, "0"),
-            ).join("");
+            const isLocalhost =
+              redirectUri.startsWith("http://localhost") ||
+              redirectUri.startsWith("http://127.0.0.1");
 
             const authUrl = new URL("https://www.tiktok.com/v2/auth/authorize/");
             authUrl.searchParams.set("client_key", clientKey);
             authUrl.searchParams.set("redirect_uri", redirectUri);
             authUrl.searchParams.set("scope", "user.info.basic,video.upload,video.publish");
             authUrl.searchParams.set("response_type", "code");
-            authUrl.searchParams.set("state", `${session.user.id}.${codeVerifier}`);
-            authUrl.searchParams.set("code_challenge", codeChallenge);
-            authUrl.searchParams.set("code_challenge_method", "S256");
+
+            if (isLocalhost) {
+              // TikTok "Desktop" platform requires PKCE (hex-encoded SHA-256) for http://localhost
+              const verifierBytes = new Uint8Array(32);
+              crypto.getRandomValues(verifierBytes);
+              const codeVerifier = Array.from(verifierBytes, (b) =>
+                b.toString(16).padStart(2, "0"),
+              ).join("");
+              const digest = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(codeVerifier),
+              );
+              const codeChallenge = Array.from(new Uint8Array(digest), (b) =>
+                b.toString(16).padStart(2, "0"),
+              ).join("");
+
+              authUrl.searchParams.set("state", `${session.user.id}.${codeVerifier}`);
+              authUrl.searchParams.set("code_challenge", codeChallenge);
+              authUrl.searchParams.set("code_challenge_method", "S256");
+            } else {
+              // Standard TikTok "Web" platform OAuth (HTTPS) uses client_secret on backend without Desktop PKCE
+              const nonceBytes = new Uint8Array(16);
+              crypto.getRandomValues(nonceBytes);
+              const nonce = Array.from(nonceBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+              authUrl.searchParams.set("state", `${session.user.id}:web:${nonce}`);
+            }
             return Response.redirect(authUrl.toString(), 302);
           }
 
@@ -201,9 +215,10 @@ export const Route = createFileRoute("/api/socials/oauth/$platform")({
             const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
             const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
             const rawState = url.searchParams.get("state") || "";
-            const codeVerifier = rawState.includes(".")
-              ? rawState.split(".").slice(1).join(".")
-              : undefined;
+            const codeVerifier =
+              !rawState.includes(":web:") && rawState.includes(".")
+                ? rawState.split(".").slice(1).join(".")
+                : undefined;
 
             const body = new URLSearchParams({
               client_key: clientKey,
